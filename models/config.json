@@ -1,0 +1,19 @@
+{
+	"layers": [
+		{
+			"weights": "weights_0.csv",
+			"biases" : "biases_0.csv",
+			"activation" : "elu"
+		},
+		{
+			"weights": "weights_1.csv",
+			"biases" : "biases_1.csv",
+			"activation" : "none"
+		},
+		{
+			"weights": "weights_2.csv",
+			"biases" : "biases_2.csv",
+			"activation" : "relu"
+		}
+	]
+}

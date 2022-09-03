@@ -20,7 +20,8 @@ namespace sparse_nn {
 										const std::vector<size_t>& matrixDims);
 
 		// loads weights and biases from csv files
-		void loadWeightsAndBiases(const std::string weightsFilename, const std::string biasFilename);
+		void loadWeightsAndBiases(const std::string weightsFilename, const std::string biasFilename,
+								  const std::vector<size_t>& matrixDims);
 
 		// public setter
 		void setActivationFunction(const std::string activation);
@@ -44,11 +45,9 @@ namespace sparse_nn {
 		std::map<std::string, std::function<float(float)>> activationMap_;
 
 		// Weights are assumed to be in format
-		//    dim0,dim1,0
 		//    i,j,val
 		// note there cannot be whitespace in file
-		using MatrixInfo = std::pair<std::vector<size_t>, std::vector<Eigen::Triplet<float>>>;
-		MatrixInfo loadWeightsFromCsv(const std::string filename) const;
+		std::vector<Eigen::Triplet<float>> loadWeightsFromCsv(const std::string filename) const;
 
 		// bias file looks like
 		// b0,b1,b2,b3

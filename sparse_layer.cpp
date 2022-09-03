@@ -44,13 +44,10 @@ namespace sparse_nn {
 		initialized_ = true;
 	}
 	
-	void SparseLayer::loadWeightsAndBiases(const std::string weightsFilename, const std::string biasFilename) {
-		MatrixInfo matrixDimsAndWeights = loadWeightsFromCsv(weightsFilename);
+	void SparseLayer::loadWeightsAndBiases(const std::string weightsFilename, const std::string biasFilename,
+										   const std::vector<size_t>& matrixDims) {
+		std::vector<Eigen::Triplet<float>> tripletList = loadWeightsFromCsv(weightsFilename);
 		std::vector<float> bias = loadBiasesFromCsv(biasFilename);
-
-		// convenience references to pair elements
-		std::vector<size_t>& matrixDims = matrixDimsAndWeights.first;
-		std::vector<Eigen::Triplet<float>>& tripletList = matrixDimsAndWeights.second;
 		
 		// check dimensions match
 		assert(("Weights and bias do not have matching dimensions", matrixDims[0] == bias.size()));
@@ -85,28 +82,18 @@ namespace sparse_nn {
 		std::cout << bias_.format(CleanFmt) << std::endl;
 	}
 
-	SparseLayer::MatrixInfo SparseLayer::loadWeightsFromCsv(const std::string filename) const {
-		SparseLayer::MatrixInfo matrixDimsAndWeights;
-		auto& matrixDims = matrixDimsAndWeights.first;
-		auto& tripletList = matrixDimsAndWeights.second;
+	std::vector<Eigen::Triplet<float>> SparseLayer::loadWeightsFromCsv(const std::string filename) const {
+		std::vector<Eigen::Triplet<float>> tripletList;
 
 		std::fstream weightsFile;
 		weightsFile.open(filename, std::ios::in);
-		
-		// first line gives dimensions
-		std::string item;
-		for (int i=0; i<2; ++i) {
-			std::getline(weightsFile, item, ',');
-			matrixDims.push_back(std::stoi(item));
-		}
-		// kill last element
-		std::getline(weightsFile, item);
 
 		// actually store A^T for efficiency in multiplying. 
 		// since C++ is row-major order, we want to store each element of a
 		// batch in the rows, not the columns
 		int i, j;
 		float val;
+		std::string item;
 		while (std::getline(weightsFile, item, ',')) {
 			j = std::stoi(item);
 			
@@ -120,7 +107,7 @@ namespace sparse_nn {
 		}
 		weightsFile.close();
 		
-		return matrixDimsAndWeights;
+		return tripletList;
 	}
 	
 	std::vector<float> SparseLayer::loadBiasesFromCsv(const std::string filename) const {

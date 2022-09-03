@@ -16,12 +16,14 @@ namespace sparse_nn {
 		std::string weightsFilename;
 		std::string biasesFilename;
 		std::string activation;
+		std::vector<size_t> dimension;
 	};
 	
 	inline void from_json(const json& j, ModelInfo& info) {
 		j.at("weights").get_to(info.weightsFilename);
 		j.at("biases").get_to(info.biasesFilename);
 		j.at("activation").get_to(info.activation);
+		j.at("dimension").get_to(info.dimension);
 	}
 	
 	class SparseModel {

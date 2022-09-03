@@ -27,7 +27,9 @@ namespace sparse_nn {
 		for (const auto& currLayerInfo : allLayersInfo["layers"]) {
 			const ModelInfo info = currLayerInfo.get<ModelInfo>();
 			layers.emplace_back(SparseLayer());
-			layers.back().loadWeightsAndBiases(basePath + info.weightsFilename, basePath + info.biasesFilename);
+			layers.back().loadWeightsAndBiases(basePath + info.weightsFilename,
+											   basePath + info.biasesFilename,
+											   info.dimension);
 			layers.back().setActivationFunction(info.activation);
 		}
 	}

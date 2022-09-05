@@ -15,11 +15,11 @@ if len(gpus) == 0:
     device = "cpu"
 elif len(gpus) == 1:
     print("Using GPU")
-    device = "cuda" #gpus[0]
+    device = "cuda" 
     print(device)
 else:
     print("Only training with single GPU")
-    device = gpus[0]
+    device = "cuda" #gpus[0] # for some reason this is not working
     
 class Autoencoder(nn.Module):
     def __init__(self, encoder, decoder):
@@ -46,9 +46,15 @@ class Encoder(nn.Module):
         self.linearReluStack = nn.Sequential(
             nn.Linear(28*28, 512),
             nn.ReLU(),
+            nn.Linear(512, 512),
+            nn.ReLU(),
             nn.Linear(512, 128),
             nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Linear(128, latentDim),
+            nn.ReLU(),
+            nn.Linear(latentDim, latentDim),
             nn.ReLU()
         )
 
@@ -63,7 +69,11 @@ class Decoder(nn.Module):
         self.linearReluStack = nn.Sequential(
             nn.Linear(latentDim, 128),
             nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Linear(128, 512),
+            nn.ReLU(),
+            nn.Linear(512, 512),
             nn.ReLU(),
             nn.Linear(512, 1000),
             nn.ReLU(),
@@ -153,7 +163,7 @@ def trainLoop(dataloader, model, loss_fn, optimizer, batchSize):
         loss.backward()
         optimizer.step()
 
-        if batch % 10 == 0:
+        if batch % 5 == 0:
             loss, current = loss.item(), (batch + 1) * batchSize
             print(f"loss: {loss:>7f}  [{int(current / size * 100):>3d}%]")
 
@@ -239,9 +249,9 @@ def sparsifyAutoencoderModel(autoencoder, finalSparsity, nSparsifyIterations, tr
         
 if __name__ == "__main__":
     # hyperparameters
-    batchSize = 512
+    batchSize = 2048
     learningRate = 1e-4
-    nEpochs = 10
+    nEpochs = 100
     
     # model building
     latentDim = 64
@@ -256,7 +266,7 @@ if __name__ == "__main__":
         download=True,
         transform=ToTensor()
     )
-    print(type(trainingData))
+
     testingData = AutoencoderDataset(
         root="data",
         train=False,
@@ -272,25 +282,22 @@ if __name__ == "__main__":
 
     trainModel(trainDataloader, testDataloader, autoencoder, lossFn, optimizer, batchSize, nEpochs)
     
-    print("Done!")
-
-    #torch.save(encoder.state_dict(), "models/encoder")
-    #torch.save(decoder.state_dict(), "models/decoder")
+    print("Done training full model!")
 
     plotSamples(testDataloader, autoencoder, 6)
 
     finalSparsity = 0.98
-    nIterations = 10
+    nIterations = 20
     losses = sparsifyAutoencoderModel(autoencoder, finalSparsity, nIterations,
                                       trainDataloader, testDataloader, lossFn, batchSize, nEpochs)
 
-    saveSparseModel(encoder.linearReluStack, "models/sparse_encoder")
-    saveSparseModel(decoder.linearReluStack, "models/sparse_decoder")
+    saveSparseModel(encoder.linearReluStack, "../models/sparse_encoder")
+    saveSparseModel(decoder.linearReluStack, "../models/sparse_decoder")
     
     fig, ax = plt.subplots()
-    ax.plot(losses[0], losses[1], losses)
+    ax.plot(losses[0], losses[1])#, losses)
     ax.set_xlabel("sparsity")
-    ax.set_ylabel("tesdt loss")
+    ax.set_ylabel("test loss")
     fig.savefig("sparsity_loss.png")
     
     plotSamples(testDataloader, autoencoder, 6)

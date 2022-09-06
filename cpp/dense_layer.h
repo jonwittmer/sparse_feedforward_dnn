@@ -9,13 +9,9 @@
 #include <Eigen/SparseCore>
 
 namespace sparse_nn {	
-	class SparseLayer : public Layer {
+	class DenseLayer : public Layer {
 	public:
-		SparseLayer() = default;
-
-		// initialize from data that is already prepared
-		SparseLayer(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
-					const std::vector<size_t>& matrixDims, const std::string activation);
+		DenseLayer() = default;
 
 		virtual void initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList,
 												const std::vector<float>& bias,
@@ -28,6 +24,6 @@ namespace sparse_nn {
 		virtual void print() const override;
 		
 	protected:
-		Eigen::SparseMatrix<float> sparseMat_;
+		Eigen::MatrixXf denseMat_;
 	};
 } // namespace sparse_nn

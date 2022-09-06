@@ -1,9 +1,12 @@
 #include "sparse_model.h"
+#include "layer.h"
 #include "sparse_layer.h"
+#include "dense_layer.h"
 
-#include <vector>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <memory>
+#include <vector>
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
@@ -26,18 +29,28 @@ namespace sparse_nn {
 		
 		for (const auto& currLayerInfo : allLayersInfo["layers"]) {
 			const ModelInfo info = currLayerInfo.get<ModelInfo>();
-			layers.emplace_back(SparseLayer());
-			layers.back().loadWeightsAndBiases(basePath + info.weightsFilename,
-											   basePath + info.biasesFilename,
-											   info.dimension);
-			layers.back().setActivationFunction(info.activation);
+			if (info.layerType == "sparse") {
+				layers.emplace_back(std::make_unique<SparseLayer>());
+			}
+			else if (info.layerType == "dense") {
+				layers.emplace_back(std::make_unique<DenseLayer>());
+			}
+			else {
+				std::cout << "layer type " << info.layerType <<  " not recognized. ";
+				std::cout << "Choose from [dense, sparse]" << std::endl;
+				assert(false);
+			}
+			layers.back()->loadWeightsAndBiases(basePath + info.weightsFilename,
+												basePath + info.biasesFilename,
+												info.dimension);
+			layers.back()->setActivationFunction(info.activation);
 		}
 	}
 
 	Eigen::MatrixXf SparseModel::run(const Eigen::MatrixXf& input) {
 		const Eigen::MatrixXf* output = &input;
 		for (auto& layer : layers) {
-			output = layer.run(*output);
+			output = layer->run(*output);
 		}
 		return *output;
 	}

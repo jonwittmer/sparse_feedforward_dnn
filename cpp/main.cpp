@@ -20,7 +20,7 @@ int main() {
 	sparse_nn::SparseLayer sl;
 
 	// load from file
-	sl.loadWeightsAndBiases("../models/weights_0.csv", "../models/biases_0.csv", {8, 10});
+	sl.loadWeightsAndBiases("../models/weights_0.csv", "../models/biases_0.csv", {10, 8});
 	sl.setActivationFunction("elu");
 	sl.print();
 

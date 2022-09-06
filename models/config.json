@@ -4,19 +4,19 @@
 			"weights": "weights_0.csv",
 			"biases" : "biases_0.csv",
 			"activation" : "elu",
-			"dimension" : [8, 10]
+			"dimension" : [10, 8]
 		},
 		{
 			"weights": "weights_1.csv",
 			"biases" : "biases_1.csv",
 			"activation" : "none",
-			"dimension" : [6, 8]
+			"dimension" : [8, 6]
 		},
 		{
 			"weights": "weights_2.csv",
 			"biases" : "biases_2.csv",
 			"activation" : "relu",
-			"dimension" : [4, 6]
+			"dimension" : [6, 4]
 		}
 	]
 }

@@ -12,7 +12,6 @@ void loadModel() {
 	auto outputMat = sm.run(inputMat);
 	std::cout << outputMat << std::endl;
 	std::cout << std::endl;
-	
 }
 
 int main() {
@@ -32,6 +31,7 @@ int main() {
 
 	std::cout << "Loading model!" << std::endl;
 	loadModel();
+	std::cout << "Here" << std::endl;
 	
 	return 0;
 }

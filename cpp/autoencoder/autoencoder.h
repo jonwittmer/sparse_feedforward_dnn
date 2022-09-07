@@ -17,7 +17,8 @@ namespace sparse_nn {
 					int mpirank, bool shouldWrite, bool debug);
 		
 		void compressStates(const std::vector<std::vector<double>> &dataBuffer, int startingTimestep, int currBatchSize);
-		void prefetchDecompressedStates(std::vector<std::vector<double>> &dataBuffer, int latestTimestep, int currBatchSize);
+		std::pair<int, int> prefetchDecompressedStates(std::vector<std::vector<double>> &dataBuffer,
+													   const int latestTimestep);
 		
 	private:
 		SparseModel encoder_;

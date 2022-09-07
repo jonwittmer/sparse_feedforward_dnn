@@ -60,15 +60,17 @@ namespace sparse_nn {
 		}
 	}
 
-	void Autoencoder::prefetchDecompressedStates(std::vector<std::vector<double>>& dataBuffer, int latestTimestep,
-												 int currBatchSize) {
+	std::pair<int, int> Autoencoder::prefetchDecompressedStates(std::vector<std::vector<double>>& dataBuffer,
+																const int latestTimestep) {
 		if (shouldWrite_ && (mpirank_ == 0)) {
 			std::cout << "Decompress called with shouldWrite_. No data was stored. ";
 			std::cout << "Make sure checkpointing is being used." << std::endl;
-			return;
+			return {0, 0};
 		}
-		
-		CompressedBatch& batchStorage = getBatchStorage(latestTimestep - currBatchSize + 1, latestTimestep);
+
+		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
+		// decompress batch
+		CompressedBatch& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
 
 		Timer decompTimer("[DECOMPRESS] decompression");
 		decompTimer.start();
@@ -84,12 +86,14 @@ namespace sparse_nn {
 		copyTimer.start();
 		copyMatrixToVector(batchDataMatrix_, dataBuffer);
 		copyTimer.stop();
-		
+
 		if (debugMode_ && (mpirank_ == 0)) {
 			decompTimer.print();
 			normTimer.print();
 			copyTimer.print();
 		}
+
+		return {batchStorage.getStartingTimestep(), batchStorage.getEndingTimestep()};
 	}
 
 	void Autoencoder::copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<std::vector<double>>& dataBuffer) {		
@@ -133,7 +137,7 @@ namespace sparse_nn {
 				return batch;
 			}
 		}
-
+		
 		// create new CompressedBatch since startingTimestep is not already in compressedStates_
 		compressedStates_.emplace_back(startingTimestep, endingTimestep);
 		return compressedStates_.back();

@@ -13,4 +13,12 @@ namespace sparse_nn {
 		if (timestep > endingTimestep_) { return false; }
 		return true;		
 	}
+
+	int CompressedBatch::getStartingTimestep() const {
+		return startingTimestep_;
+	}
+
+	int CompressedBatch::getEndingTimestep() const {
+		return endingTimestep_;
+	}
 }

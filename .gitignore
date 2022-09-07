@@ -4,3 +4,6 @@ models/
 test
 *.png
 __pycache__/
+*.o
+*.so
+build/

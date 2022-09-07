@@ -9,7 +9,7 @@
 #include <Eigen/SparseCore>
 
 
-namespace sparse_nn {	
+namespace sparse_nn {
 	inline std::map<std::string, std::function<float(float)>> defineActivationFunctions() {
 		std::map<std::string, std::function<float(float)>> activationMap = {
 			{"relu", [](float x){ return std::max(x, 0.f); }},

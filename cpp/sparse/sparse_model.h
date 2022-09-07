@@ -32,6 +32,7 @@ namespace sparse_nn {
 	
 	class SparseModel {
 	public:
+		SparseModel() = default;
 		SparseModel(const std::string configFilename);
 	
 		Eigen::MatrixXf run(const Eigen::MatrixXf& input);

@@ -31,7 +31,6 @@ int main() {
 
 	std::cout << "Loading model!" << std::endl;
 	loadModel();
-	std::cout << "Here" << std::endl;
 	
 	return 0;
 }

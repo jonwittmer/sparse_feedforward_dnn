@@ -1,4 +1,4 @@
-#include "layer.h"
+#include "sparse/layer.h"
 
 #include <algorithm>
 #include <iostream>

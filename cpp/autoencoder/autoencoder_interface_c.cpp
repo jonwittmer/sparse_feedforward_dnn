@@ -1,6 +1,6 @@
-#include "autoencoder_interface_c.h"
-#include "autoencoder.h"
-#include "timer.h"
+#include "autoencoder/autoencoder_interface_c.h"
+#include "autoencoder/autoencoder.h"
+#include "utils/timer.h"
 
 #include <chrono>
 #include <iostream>

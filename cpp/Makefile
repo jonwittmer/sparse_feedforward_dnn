@@ -1,6 +1,6 @@
 CXX=g++
 #SOURCE=main.cpp sparse/sparse_layer.cpp sparse/sparse_model.cpp sparse/layer.cpp sparse/dense_layer.cpp autoencoder/compressed_batch.cpp autoencoder/autoencoder.cpp
-INCLUDES := -I${EIGEN_DIR} -I${JSON_DIR} -Isparse/ -Inormalization/ -Iautoencoder/ -Iutils/
+INCLUDES := -I${EIGEN_DIR} -I${JSON_DIR} -I./ #-Isparse/ -Inormalization/ -Iautoencoder/ -Iutils/
 BUILD_DIR := ./build
 OBJS := $(BUILD_DIR)/sparse_layer.o $(BUILD_DIR)/sparse_layer.o $(BUILD_DIR)/dense_layer.o  $(BUILD_DIR)/layer.o $(BUILD_DIR)/sparse_model.o $(BUILD_DIR)/compressed_batch.o $(BUILD_DIR)/autoencoder.o  
 

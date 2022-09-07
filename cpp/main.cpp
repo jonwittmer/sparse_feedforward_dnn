@@ -1,5 +1,5 @@
-#include "sparse_model.h"
-#include "sparse_layer.h"
+#include "sparse/sparse_model.h"
+#include "sparse/sparse_layer.h"
 
 #include <iostream>
 #include <Eigen/Core>

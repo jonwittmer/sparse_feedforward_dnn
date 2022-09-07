@@ -1,5 +1,5 @@
 #pragma once
-#include "layer.h"
+#include "sparse/layer.h"
 
 #include <map>
 #include <string>

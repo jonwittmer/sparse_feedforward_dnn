@@ -1,4 +1,4 @@
-#include "dense_layer.h"
+#include "sparse/dense_layer.h"
 
 #include <algorithm>
 #include <iostream>

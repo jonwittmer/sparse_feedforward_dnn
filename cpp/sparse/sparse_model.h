@@ -1,6 +1,6 @@
 #pragma once
-#include "sparse_layer.h"
-#include "dense_layer.h"
+#include "sparse/sparse_layer.h"
+#include "sparse/dense_layer.h"
 
 #include <iostream>
 #include <memory>

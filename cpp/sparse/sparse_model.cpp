@@ -1,7 +1,7 @@
-#include "sparse_model.h"
-#include "layer.h"
-#include "sparse_layer.h"
-#include "dense_layer.h"
+#include "sparse/sparse_model.h"
+#include "sparse/layer.h"
+#include "sparse/sparse_layer.h"
+#include "sparse/dense_layer.h"
 
 #include <fstream>
 #include <iostream>

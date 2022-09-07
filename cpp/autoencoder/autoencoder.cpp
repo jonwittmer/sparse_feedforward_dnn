@@ -1,8 +1,8 @@
-#include "autoencoder.h"
-#include "compressed_batch.h"
-#include "normalization.h"
-#include "sparse_model.h"
-#include "timer.h"
+#include "autoencoder/autoencoder.h"
+#include "autoencoder/compressed_batch.h"
+#include "normalization/normalization.h"
+#include "sparse/sparse_model.h"
+#include "utils/timer.h"
 
 #include <iostream>
 #include <fstream>

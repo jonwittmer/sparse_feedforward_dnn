@@ -37,7 +37,8 @@ namespace sparse_nn {
 		allocateOutputMat(inputMat.rows());
  
 		// activation(Ax + b) 
-		outputMat_.noalias() = ((inputMat * sparseMat_).rowwise() + bias_.transpose()).unaryExpr(activationMap_[activation_]);
+		outputMat_.noalias() = ((inputMat * sparseMat_).rowwise() + bias_.transpose());
+		outputMat_.noalias() = outputMat_.unaryExpr(activationMap_[activation_]);
 		return &outputMat_;
 	}
 	

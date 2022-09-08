@@ -1,4 +1,6 @@
 #pragma once
+#include "utils/timer.h"
+
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -16,9 +18,12 @@ namespace sparse_nn {
 	}
 
 	inline Eigen::VectorXd divideAndReturnRanges(Eigen::MatrixXd& mat) {
-		Eigen::VectorXd maxs = mat.rowwise().maxCoeff().unaryExpr(
-			  [](double x){ return std::max(1e-7, x);});
+		// keep max and unary separate operations
+		// it turns out to be much faster for some reason
+		Eigen::VectorXd maxs = mat.rowwise().maxCoeff();
+		maxs.noalias() = maxs.unaryExpr([](double x){ return std::max(1e-7, x);});
 		mat.array().colwise() /= maxs.array();
+		
 		return maxs;
 	}
 	

@@ -43,7 +43,7 @@ namespace sparse_nn {
 		// normalize
 		Timer normTimer("[COMPRESS] normalization");
 		normTimer.start();
-		batchStorage.mins = subtractAndReturnMins(batchDataMatrix_);
+		batchStorage.mins = subtractAndReturnMins(batchDataMatrix_);		
 		batchStorage.ranges = divideAndReturnRanges(batchDataMatrix_);
 		normTimer.stop();
 		

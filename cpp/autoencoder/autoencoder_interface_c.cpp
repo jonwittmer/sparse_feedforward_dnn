@@ -9,7 +9,7 @@
 
 #define DEBUG_RANK -1
 
-bool debugMode = false;
+bool debugMode = true;
 bool shouldWriteDataToFile = false;
 
 /* pthreads variables for spinning off compression. */
@@ -41,7 +41,7 @@ int altBufferMinTimestep = -1;
 int altBufferMaxTimestep = -1;
 bool exitFlag;
 bool decompressFlag;
-bool forwardModeFlag;
+bool forwardModeFlag; 
 
 void TestAutoencoder() {
 	// needed for linking to mangll
@@ -358,9 +358,15 @@ void decompress_to_array(double **localStateLocations, int requestedTimestep, in
 
 	// make sure that the current buffer is available for read
 	// - switching ping-pong buffer is not in progress
+	sparse_nn::Timer waitingTimer2("[INTERFACE] pde waiting for currSharedBuffer");
+	waitingTimer2.start();
 	pthread_mutex_lock(&sharedDataMutex);
 	while (bufferIsFull) {
 		pthread_cond_wait(&sharedDataCond, &sharedDataMutex);
+	}
+	waitingTimer2.stop();
+	if (mpirank == DEBUG_RANK) {
+		waitingTimer2.print();
 	}
 
 	// make sure requested timestep is in current buffer

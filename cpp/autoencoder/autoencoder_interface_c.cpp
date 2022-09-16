@@ -13,7 +13,7 @@
 
 bool debugMode = true;
 bool storeNoCompress = false;
-bool shouldWriteDataToFile = false;
+bool shouldWriteDataToFile = true;
 
 /* pthreads variables for spinning off compression. */
 pthread_t compressionThread;

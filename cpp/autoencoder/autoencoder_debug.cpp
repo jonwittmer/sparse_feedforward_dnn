@@ -71,7 +71,7 @@ namespace sparse_nn {
 	void AutoencoderDebug::writeDataToFile(const std::vector<std::vector<double>>& data) const {
 		// writing all ofthe data will take up an extremely large amount of storage
 		// only write part of it
-		double writeProbability = 0.001;
+		double writeProbability = 0.0001;
 
 		std::string filename = "data_storage_rank_" + std::to_string(mpirank_) + ".bin";
 		std::ofstream myFile(filename, std::ios::binary | std::ios::app);

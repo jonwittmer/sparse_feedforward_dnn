@@ -9,6 +9,8 @@ extern "C" {
 	
 typedef struct {
 	int nStates;
+	int nElements;
+	int dofsPerElement;
 	int dataSize;
 	int batchSize;
 	char *encoderDir;

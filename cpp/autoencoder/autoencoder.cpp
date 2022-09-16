@@ -13,8 +13,9 @@
 
 namespace sparse_nn {
 	Autoencoder::Autoencoder(const std::string encoderPath, const std::string decoderPath, int dataSize,
-							 int mpirank, bool shouldWrite, bool debug) :
+							 int nStates, int mpirank, bool shouldWrite, bool debug) :
 		dataSize_(dataSize),
+		nStates_(nStates),
 		mpirank_(mpirank),
 		shouldWrite_(shouldWrite),
 		debugMode_(debug)

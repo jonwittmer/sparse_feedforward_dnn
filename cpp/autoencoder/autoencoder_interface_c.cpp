@@ -10,7 +10,8 @@
 #define DEBUG_RANK -1
 
 bool debugMode = true;
-bool shouldWriteDataToFile = false;
+bool shouldWriteDataToFile = true;
+bool useTimeCompression = true;
 
 /* pthreads variables for spinning off compression. */
 pthread_t compressionThread;
@@ -24,6 +25,8 @@ bool bufferReadyToCompress;
 /* shared data */
 bool sharedIsLast;
 int dataSize;
+int dofsPerElement = 64;
+int nElements;
 int nStates = 36;
 int mpirank;
 int batchSize;
@@ -49,9 +52,22 @@ void TestAutoencoder() {
 }
 
 sparse_nn::Autoencoder *create_autoencoder(ae_parameters_t *aeParams) {
-	sparse_nn::Autoencoder *autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
-																	  aeParams->dataSize, aeParams->mpirank,
-																	  shouldWriteDataToFile, debugMode);
+	sparse_nn::Autoencoder* autoencoder;
+	if (useTimeCompression) {
+		// abuse some of the arguments to get dimensions to work out correctly when compressing
+		// over time instead of over space
+		autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
+												 aeParams->dofsPerElement * batchSize,
+												 aeParams->nStates * aeParams->nElements,
+												 aeParams->mpirank,
+												 shouldWriteDataToFile, debugMode);
+	}
+	else {
+		autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
+												 aeParams->dataSize, aeParams->nStates,
+												 aeParams->mpirank,
+												 shouldWriteDataToFile, debugMode);
+	}
 	
 	if (debugMode) {
 		std::cout << "Autoencoder in debug mode\n" << std::endl;
@@ -74,18 +90,19 @@ void print_data(double **dataLocations) {
 void copy_to_shared_buffer(double **dataLocations) {
 	sparse_nn::Timer copyTimer("[INTERFACE] copy from mangll");
 	copyTimer.start();
-	if (altDataBuffer->size() > batchIndex) {
-		for (int i = 0; i < nStates; i++) {
-			std::copy(dataLocations[i], dataLocations[i] + dataSize, &((*altDataBuffer)[batchIndex][0]) + i * dataSize);
-		}
-	} else if (altDataBuffer->size() == batchIndex) {
+	if (altDataBuffer->size() < batchIndex) {
+		std::cout << "batch index too large - alt_data_buffer is not big enough" << std::endl;
+		assert(false);
+	}
+
+	// expand altDataBuffer if needed
+	if (altDataBuffer->size() == batchIndex) {
 		std::vector<double> tempVector(dataSize * nStates);
 		(*altDataBuffer).push_back(std::move(tempVector));
-		for (int i = 0; i < nStates; i++) {
-			std::copy(dataLocations[i], dataLocations[i] + dataSize, &((*altDataBuffer)[batchIndex][0]) + i * dataSize);
-		}
-	} else {
-		std::cout << "batch index too large - alt_data_buffer is not big enough" << std::endl;
+	}
+	
+	for (int i = 0; i < nStates; i++) {
+		std::copy(dataLocations[i], dataLocations[i] + dataSize, &((*altDataBuffer)[batchIndex][0]) + i * dataSize);
 	}
 	copyTimer.stop();
 	
@@ -97,7 +114,7 @@ void copy_to_shared_buffer(double **dataLocations) {
 void copy_from_shared_buffer(double **dataLocations) {
 	sparse_nn::Timer copyTimer("[INTERFACE] copy to mangll");
 	copyTimer.start();
-	if ((*currSharedDataBuffer).size() > batchIndex) {
+	if (currSharedDataBuffer->size() > batchIndex) {
 		for (int i = 0; i < nStates; i++) {
 			std::copy((*currSharedDataBuffer)[batchIndex].begin() + i * dataSize,
 					  (*currSharedDataBuffer)[batchIndex].begin() + (i + 1) * dataSize,
@@ -112,11 +129,60 @@ void copy_from_shared_buffer(double **dataLocations) {
 	}
 }
 
-void initialize_storage(int timestepSize) {
+void copy_to_shared_buffer_time(double **dataLocations) {
+	sparse_nn::Timer copyTimer("[INTERFACE] copy from mangll");
+	copyTimer.start();
+    
+	// expand altDataBuffer if needed
+	if (altDataBuffer->size() < nStates * nElements) {
+		std::cout << "altDataBuffer too small. Adding ";
+		std::cout << " vectors. " << std::endl;
+		for (int i = 0; i < nStates * nElements - altDataBuffer->size(); ++i) {
+			(*altDataBuffer).emplace_back(dofsPerElement * batchSize, 0);
+		}
+	}
+
+	for (int i = 0; i < nStates; ++i) {
+		int currStateIndex = i * nElements;
+		for (int j = 0; j < nElements; ++j) {
+			double* startLoc = &(dataLocations[i][j * dofsPerElement]);
+			std::copy(startLoc, startLoc + dofsPerElement, &((*altDataBuffer)[currStateIndex + j][0]) + dofsPerElement * batchIndex);
+		}
+	}
+	copyTimer.stop();
+	
+	if (mpirank == DEBUG_RANK) {
+		copyTimer.print();
+	}
+}
+
+void copy_from_shared_buffer_time(double **dataLocations) {
+	sparse_nn::Timer copyTimer("[INTERFACE] copy to mangll");
+	copyTimer.start();
+	if (batchIndex >= currSharedDataBuffer->size()) {
+		std::cout << "batch index too large - batch_index is outside shared_buffer size" << std::endl;
+		assert(false);
+	}
+
+	for (int i = 0; i < nStates; ++i) {
+		int currStateIndex = i * nElements;
+		for (int j = 0; j < nElements; ++j) {
+			double* startLoc = &((*currSharedDataBuffer)[currStateIndex + j][0]) + dofsPerElement * batchIndex;
+			std::copy(startLoc, startLoc + dofsPerElement, &(dataLocations[i][j * dofsPerElement]));
+		}
+	}
+	
+	copyTimer.stop();
+	if (mpirank == DEBUG_RANK) {
+		copyTimer.print();
+	}
+}
+
+void initialize_storage(int bufferSize, int nBuffers) {
 	// create empty vector of the right size
-	auto tempVector = std::vector<double>(timestepSize, 0);
+	auto tempVector = std::vector<double>(bufferSize, 0);
 	for (int i = 0; i < 2; i++) {
-		pingpongBufferPointers[i] = new std::vector<std::vector<double>>(batchSize);
+		pingpongBufferPointers[i] = new std::vector<std::vector<double>>(nBuffers);
 
 		// copy temp vector into pingpong_buffer elements so each element has the right size
 		for (auto &item : (*pingpongBufferPointers[i])) {
@@ -134,7 +200,10 @@ void spawn_autoencoder_thread(ae_parameters_t *aeParams) {
 	bufferReadyToCompress = true;
 	bufferIsFull = false;
 	batchSize = aeParams->batchSize;
+	batchSize = 64;
 	dataSize = aeParams->dataSize;
+	dofsPerElement = aeParams->dofsPerElement;
+	nElements = aeParams->nElements;
 	nStates = aeParams->nStates;
 	mpirank = aeParams->mpirank;
 	
@@ -171,7 +240,7 @@ void clear_affinity_mask() {
 	pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset);
 }
 
-void *run_autoencoder_manager(void *args) {
+void* run_autoencoder_manager(void *args) {
 	// allow thread to run on any processor
 	//clear_affinity_mask();
 
@@ -179,7 +248,12 @@ void *run_autoencoder_manager(void *args) {
 	ae_parameters_t *aeParams = static_cast<ae_parameters_t *>(args);
 
 	// create the pingpong buffers and initialize them
-	initialize_storage(aeParams->nStates * aeParams->dataSize);
+	if (useTimeCompression) {
+		initialize_storage(aeParams->nStates * aeParams->nElements, aeParams->dofsPerElement * batchSize);
+	}
+	else {
+		initialize_storage(aeParams->nStates * aeParams->dataSize, aeParams->batchSize);
+	}
 	
 	// lock the mutex during initialization
 	pthread_mutex_lock(&compressionMutex);
@@ -320,8 +394,13 @@ void compress_from_array(double **localStateLocations, int timestep, int isLast)
 
 	// reset batch index
 	if (timestep == 0) { batchIndex = 0; }
-	
-	copy_to_shared_buffer(localStateLocations);
+
+	if (useTimeCompression) {
+		copy_to_shared_buffer_time(localStateLocations);
+	}
+	else {
+		copy_to_shared_buffer(localStateLocations);
+	}
 	
 	batchIndex = (batchIndex + 1) % batchSize;
 	if (batchIndex == 0 || sharedIsLast) {
@@ -403,6 +482,11 @@ void decompress_to_array(double **localStateLocations, int requestedTimestep, in
 	// now that we know the current shared buffer has the requested timestep, copy data
 	// Data is aligned to the end of buffer since we are going backward, so subtract from batchSize to get index
 	batchIndex = batchSize - (currBufferMaxTimestep - requestedTimestep) - 1;
-	copy_from_shared_buffer(localStateLocations);
+	if (useTimeCompression) {
+		copy_from_shared_buffer_time(localStateLocations);
+	}
+	else {
+		copy_from_shared_buffer(localStateLocations);
+	}
 	pthread_mutex_unlock(&sharedDataMutex);
 }

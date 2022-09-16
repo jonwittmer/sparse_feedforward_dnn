@@ -14,7 +14,7 @@ namespace sparse_nn {
 	class Autoencoder {
 	public:
 		Autoencoder(const std::string encoderPath, const std::string decoderPath, int dataSize,
-					int mpirank, bool shouldWrite, bool debug);
+					int nStates, int mpirank, bool shouldWrite, bool debug);
 		
 		void compressStates(const std::vector<std::vector<double>> &dataBuffer, int startingTimestep, int currBatchSize);
 		std::pair<int, int> prefetchDecompressedStates(std::vector<std::vector<double>> &dataBuffer,

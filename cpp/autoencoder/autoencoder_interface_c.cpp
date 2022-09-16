@@ -1,5 +1,6 @@
 #include "autoencoder/autoencoder_interface_c.h"
 #include "autoencoder/autoencoder.h"
+#include "autoencoder/autoencoder_debug.h"
 #include "utils/timer.h"
 
 #include <chrono>
@@ -8,8 +9,10 @@
 #include <vector>
 
 #define DEBUG_RANK -1
+#define VERBOSE_DEBUG -1
 
 bool debugMode = true;
+bool storeNoCompress = false;
 bool shouldWriteDataToFile = false;
 
 /* pthreads variables for spinning off compression. */
@@ -49,9 +52,16 @@ void TestAutoencoder() {
 }
 
 sparse_nn::Autoencoder *create_autoencoder(ae_parameters_t *aeParams) {
-	sparse_nn::Autoencoder *autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
-																	  aeParams->dataSize, aeParams->mpirank,
-																	  shouldWriteDataToFile, debugMode);
+	sparse_nn::Autoencoder* autoencoder;
+	if (shouldWriteDataToFile || storeNoCompress) {
+		autoencoder = new sparse_nn::AutoencoderDebug(aeParams->encoderDir, aeParams->decoderDir,
+																									aeParams->dataSize, aeParams->mpirank,
+																									shouldWriteDataToFile, debugMode);
+	}
+	else
+		autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
+																						 aeParams->dataSize, aeParams->mpirank,
+																						 debugMode);
 	
 	if (debugMode) {
 		std::cout << "Autoencoder in debug mode\n" << std::endl;
@@ -89,7 +99,7 @@ void copy_to_shared_buffer(double **dataLocations) {
 	}
 	copyTimer.stop();
 	
-	if (mpirank == DEBUG_RANK) {
+	if (mpirank == VERBOSE_DEBUG) {
 		copyTimer.print();
 	}
 }
@@ -107,7 +117,7 @@ void copy_from_shared_buffer(double **dataLocations) {
 		std::cout << "batch index too large - batch_index is outside shared_buffer size" << std::endl;
 	}
 	copyTimer.stop();
-	if (mpirank == DEBUG_RANK) {
+	if (mpirank == VERBOSE_DEBUG) {
 		copyTimer.print();
 	}
 }
@@ -165,15 +175,15 @@ void clear_affinity_mask() {
 	pthread_t thread = pthread_self();
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);
-	// CPU_SET(n_mpi_tasks_per_node + (local_thread_number % (n_hardware_threads - n_mpi_tasks_per_node)), &cpuset);
+	CPU_SET(nMpiTasksPerNode + (localThreadNumber % (nHardwareThreads - nMpiTasksPerNode)), &cpuset);
 	// for timing testing, pin to same core as main thread.
-	 CPU_SET(mpirank, &cpuset);
+	// CPU_SET(localThreadNumber, &cpuset);
 	pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset);
 }
 
 void *run_autoencoder_manager(void *args) {
 	// allow thread to run on any processor
-	//clear_affinity_mask();
+	clear_affinity_mask();
 
 	// pthreads requires single void * argument 
 	ae_parameters_t *aeParams = static_cast<ae_parameters_t *>(args);
@@ -402,7 +412,7 @@ void decompress_to_array(double **localStateLocations, int requestedTimestep, in
 
 	// now that we know the current shared buffer has the requested timestep, copy data
 	// Data is aligned to the end of buffer since we are going backward, so subtract from batchSize to get index
-	batchIndex = batchSize - (currBufferMaxTimestep - requestedTimestep) - 1;
+	batchIndex = requestedTimestep - currBufferMinTimestep;
 	copy_from_shared_buffer(localStateLocations);
 	pthread_mutex_unlock(&sharedDataMutex);
 }

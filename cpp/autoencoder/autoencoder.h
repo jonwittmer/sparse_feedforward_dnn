@@ -14,16 +14,15 @@ namespace sparse_nn {
 	class Autoencoder {
 	public:
 		Autoencoder(const std::string encoderPath, const std::string decoderPath, int dataSize,
-					int mpirank, bool shouldWrite, bool debug);
+					int mpirank, bool debug);
 		
-		void compressStates(const std::vector<std::vector<double>> &dataBuffer, int startingTimestep, int currBatchSize);
-		std::pair<int, int> prefetchDecompressedStates(std::vector<std::vector<double>> &dataBuffer,
+		virtual void compressStates(const std::vector<std::vector<double>> &dataBuffer, int startingTimestep, int currBatchSize);
+		virtual std::pair<int, int> prefetchDecompressedStates(std::vector<std::vector<double>> &dataBuffer,
 													   const int latestTimestep);
 		
-	private:
+	protected:
 		SparseModel encoder_;
 		SparseModel decoder_;
-		std::vector<CompressedBatch> compressedStates_;
 		Eigen::MatrixXd batchDataMatrix_;
 		
 		bool debugMode_ = false;
@@ -36,7 +35,9 @@ namespace sparse_nn {
 
 		void copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<std::vector<double>>& dataBuffer);
 		void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<std::vector<double>>& dataBuffer);
-		CompressedBatch& getBatchStorage(const int startingTimestep, const int endingTimestep);
-		void writeDataToFile(const std::vector<std::vector<double>>& data) const;
+
+	private:
+		std::vector<CompressedBatch<Eigen::MatrixXf>> compressedStates_;
+		CompressedBatch<Eigen::MatrixXf>& getBatchStorage(const int startingTimestep, const int endingTimestep);
 	};
 }

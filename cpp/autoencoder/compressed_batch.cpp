@@ -3,22 +3,30 @@
 #include <Eigen/Core>
 
 namespace sparse_nn {
-	CompressedBatch::CompressedBatch(const int startingTimestep, const int endingTimestep) {
+	template <typename T>
+	CompressedBatch<T>::CompressedBatch(const int startingTimestep, const int endingTimestep) {
 		startingTimestep_ = startingTimestep;
 		endingTimestep_ = endingTimestep;
 	}
 	
-	bool CompressedBatch::isTimestepInBatch(const int timestep) const {
+	template <typename T>
+	bool CompressedBatch<T>::isTimestepInBatch(const int timestep) const {
 		if (timestep < startingTimestep_) { return false; }
 		if (timestep > endingTimestep_) { return false; }
 		return true;		
 	}
 
-	int CompressedBatch::getStartingTimestep() const {
+	template <typename T>
+	int CompressedBatch<T>::getStartingTimestep() const {
 		return startingTimestep_;
 	}
 
-	int CompressedBatch::getEndingTimestep() const {
+	template <typename T>
+	int CompressedBatch<T>::getEndingTimestep() const {
 		return endingTimestep_;
 	}
+
+	// instantiate the templates we need
+	template class CompressedBatch<Eigen::MatrixXf>;
+	template class CompressedBatch<Eigen::MatrixXd>;
 }

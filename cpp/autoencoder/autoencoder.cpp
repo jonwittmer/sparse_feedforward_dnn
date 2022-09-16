@@ -13,33 +13,27 @@
 
 namespace sparse_nn {
 	Autoencoder::Autoencoder(const std::string encoderPath, const std::string decoderPath, int dataSize,
-							 int mpirank, bool shouldWrite, bool debug) :
+													 int mpirank, bool debug) :
 		dataSize_(dataSize),
 		mpirank_(mpirank),
-		shouldWrite_(shouldWrite),
 		debugMode_(debug)
 	{
 		encoder_ = SparseModel(encoderPath);
 		decoder_ = SparseModel(decoderPath);
-
+		
 		// give batchDataMatrix_ the correct number of columns
 		batchDataMatrix_.resize(1, dataSize_);
 	}
-		
+	
 	void Autoencoder::compressStates(const std::vector<std::vector<double>> &dataBuffer,
-									 int startingTimestep, int currBatchSize) {
-		if (shouldWrite_) {
-			writeDataToFile(dataBuffer);
-			return;
-		}
-		
+																	 int startingTimestep, int currBatchSize) {		
 		Timer copyTimer("[COMPRESS] copy to matrix");
 		copyTimer.start();
 		copyVectorToMatrix(batchDataMatrix_, dataBuffer);
 		copyTimer.stop();
 		
-		CompressedBatch& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
-
+		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
+		
 		// normalize
 		Timer normTimer("[COMPRESS] normalization");
 		normTimer.start();
@@ -52,36 +46,30 @@ namespace sparse_nn {
 		compressTimer.start();
 		batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());
 		compressTimer.stop();
-
+		
 		if (debugMode_ && (mpirank_ == 0)) {
 			copyTimer.print();
 			normTimer.print();
 			compressTimer.print();
 		}
 	}
-
+	
 	std::pair<int, int> Autoencoder::prefetchDecompressedStates(std::vector<std::vector<double>>& dataBuffer,
-																const int latestTimestep) {
-		if (shouldWrite_ && (mpirank_ == 0)) {
-			std::cout << "Decompress called with shouldWrite_. No data was stored. ";
-			std::cout << "Make sure checkpointing is being used." << std::endl;
-			return {0, 0};
-		}
-
+																															const int latestTimestep) {
 		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
 		// decompress batch
-		CompressedBatch& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
+		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
 
 		Timer decompTimer("[DECOMPRESS] decompression");
 		decompTimer.start();
 		Eigen::MatrixXf decompressedBatch = decoder_.run(batchStorage.data);
 		decompTimer.stop();
-
+		
 		Timer normTimer("[DECOMPRESS] unnormalize");
 		normTimer.start();
 		batchDataMatrix_ = unnormalize(decompressedBatch, batchStorage.mins, batchStorage.ranges);
 		normTimer.stop();
-
+	
 		Timer copyTimer("[DECOMPRESS] copy to vector");
 		copyTimer.start();
 		copyMatrixToVector(batchDataMatrix_, dataBuffer);
@@ -129,7 +117,7 @@ namespace sparse_nn {
 		}
 	}
 
-	CompressedBatch& Autoencoder::getBatchStorage(const int startingTimestep, const int endingTimestep) {
+	CompressedBatch<Eigen::MatrixXf>& Autoencoder::getBatchStorage(const int startingTimestep, const int endingTimestep) {
 		// this function as written is pretty brittle as handling for batches that cross
 		// muliple CompressedBatch objects is not detected or supported
 		for (auto& batch : compressedStates_) {
@@ -141,32 +129,5 @@ namespace sparse_nn {
 		// create new CompressedBatch since startingTimestep is not already in compressedStates_
 		compressedStates_.emplace_back(startingTimestep, endingTimestep);
 		return compressedStates_.back();
-	}
-	
-	void Autoencoder::writeDataToFile(const std::vector<std::vector<double>>& data) const {
-		// writing all ofthe data will take up an extremely large amount of storage
-		// only write part of it
-		double writeProbability = 0.001;
-
-		std::string filename = "data_storage_rank_" + std::to_string(mpirank_) + ".bin";
-		std::ofstream myFile(filename, std::ios::binary | std::ios::app);
-		if (!myFile.is_open()) {
-			std::cout << "Failure to open file " << filename << std::endl;
-			return;
-		}
-
-		for (const auto& singleTimestep : data) {
-			// convert probability into integer for sampling
-			// see https://www.cplusplus.com/refrence/cstdlib/rand/
-			int integer_scaling = static_cast<int>(1. / writeProbability);
-			int sample = rand() % integer_scaling;
-			if (sample == 0) {
-				// write all of the states for a single timestep if selected
-				myFile.write(reinterpret_cast<const char*>(&(singleTimestep[0])),
-							 std::streamsize(nStates_ * dataSize_ * sizeof(double)));
-			}
-		}
-		myFile.close();
-		return;
 	}
 } // namespace sparse_nn

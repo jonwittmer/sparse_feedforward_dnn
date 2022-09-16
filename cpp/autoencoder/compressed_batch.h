@@ -3,6 +3,7 @@
 #include <Eigen/Core>
 
 namespace sparse_nn {
+	template <typename T>
 	class CompressedBatch {
 	public:
 		CompressedBatch(const int startingTimestep, const int endingTimestep);
@@ -14,7 +15,7 @@ namespace sparse_nn {
 		
 		Eigen::VectorXd mins;
 		Eigen::VectorXd ranges;
-		Eigen::MatrixXf data;
+		T data;
 		
 	private:
 		int startingTimestep_;

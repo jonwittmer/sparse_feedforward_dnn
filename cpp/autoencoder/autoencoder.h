@@ -19,6 +19,8 @@ namespace sparse_nn {
 		virtual void compressStates(const std::vector<std::vector<double>> &dataBuffer, int startingTimestep, int currBatchSize);
 		virtual std::pair<int, int> prefetchDecompressedStates(std::vector<std::vector<double>> &dataBuffer,
 													   const int latestTimestep);
+	   
+		CompressedBatch<Eigen::MatrixXf>& getBatchStorage(const int startingTimestep, const int endingTimestep);
 		
 	protected:
 		SparseModel encoder_;
@@ -29,7 +31,7 @@ namespace sparse_nn {
 		bool shouldWrite_ = false;
 
 		// specific to mangll seismic inversion problem
-		int nStates_ = 36; // 9 variables, 4 states per variable
+		int nStates_ = 1; // 9 variables, 4 states per variable
 		int dataSize_;
 		int mpirank_;
 
@@ -37,7 +39,6 @@ namespace sparse_nn {
 		void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<std::vector<double>>& dataBuffer);
 
 	private:
-		std::vector<CompressedBatch<Eigen::MatrixXf>> compressedStates_;
-		CompressedBatch<Eigen::MatrixXf>& getBatchStorage(const int startingTimestep, const int endingTimestep);
+		std::vector<CompressedBatch<Eigen::MatrixXf>> compressedStates_;	
 	};
 }

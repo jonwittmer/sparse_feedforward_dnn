@@ -26,11 +26,14 @@ namespace sparse_nn {
 	}
 	
 	void Autoencoder::compressStates(const std::vector<std::vector<double>> &dataBuffer,
-																	 int startingTimestep, int currBatchSize) {		
+																	 int startingTimestep, int currBatchSize) {
+		std::cout << "BatchDataMatrix shape: (" << batchDataMatrix_.rows() << ", "  << batchDataMatrix_.cols() << ")" << std::endl; 
 		Timer copyTimer("[COMPRESS] copy to matrix");
 		copyTimer.start();
 		copyVectorToMatrix(batchDataMatrix_, dataBuffer);
 		copyTimer.stop();
+
+		std::cout << "BatchDataMatrix shape: (" << batchDataMatrix_.rows() << ", "  << batchDataMatrix_.cols() << ")" << std::endl; 
 		
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
 		

@@ -33,9 +33,9 @@ namespace sparse_nn {
 	const Eigen::MatrixXf* DenseLayer::run(const Eigen::MatrixXf& inputMat) {
 		assert(("Matrix dimension mismatch", inputMat.cols() == denseMat_.rows()));
 		allocateOutputMat(inputMat.rows());
- 
+
 		// activation(Ax + b) 
-		outputMat_.noalias() = ((inputMat * denseMat_).rowwise() + bias_.transpose()).unaryExpr(activationMap_[activation_]);
+		outputMat_ = ((inputMat * denseMat_).rowwise() + bias_.transpose()).unaryExpr(activationMap_[activation_]);
 		return &outputMat_;
 	}
 	

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <unistd.h>
 
 #include <Eigen/Core>
 
@@ -40,7 +41,7 @@ namespace sparse_nn {
 		batchStorage.mins = subtractAndReturnMins(batchDataMatrix_);		
 		batchStorage.ranges = divideAndReturnRanges(batchDataMatrix_);
 		normTimer.stop();
-		
+
 		// do compression
 		Timer compressTimer("[COMPRESS] compression");
 		compressTimer.start();
@@ -52,6 +53,24 @@ namespace sparse_nn {
 			normTimer.print();
 			compressTimer.print();
 		}
+		
+    // remove later once code has been verified
+    if (debugMode_ && mpirank_ == 0) {
+      Eigen::MatrixXf decodedMat = decoder_.run(batchStorage.data);
+      //Eigen::MatrixXd unnormalizedMat = unnormalize(decodedMat, batchStorage.mins, batchStorage.ranges);
+      double errorNorm = (decodedMat - batchDataMatrix_.cast<float>()).norm();
+      double batchNorm = batchDataMatrix_.norm();
+      if (batchNorm > 1e-7){
+        double relError = errorNorm / batchNorm;
+        std::cout << "[COMPRESS] Relative decompression error for batch: " << relError * 100;
+        std::cout << "%" << std::endl;
+      }
+      std::cout << "[COMPRESS] Decompressed matrix norm (still normalized): ";
+      std::cout << decodedMat.norm() << std::endl;
+      std::cout << "[COMPRESS] True matrix norm: ";
+      std::cout << batchNorm << std::endl;
+    }
+
 	}
 	
 	std::pair<int, int> Autoencoder::prefetchDecompressedStates(std::vector<std::vector<double>>& dataBuffer,

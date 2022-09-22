@@ -35,9 +35,9 @@ namespace sparse_nn {
 	const Eigen::MatrixXf* SparseLayer::run(const Eigen::MatrixXf& inputMat) {
 		assert(("Matrix dimension mismatch", inputMat.cols() == sparseMat_.rows()));
 		allocateOutputMat(inputMat.rows());
- 
+
 		// activation(Ax + b) 
-		outputMat_.noalias() = ((inputMat * sparseMat_).rowwise() + bias_.transpose());
+		outputMat_ = ((inputMat * sparseMat_).rowwise() + bias_.transpose());
 		outputMat_.noalias() = outputMat_.unaryExpr(activationMap_[activation_]);
 		return &outputMat_;
 	}

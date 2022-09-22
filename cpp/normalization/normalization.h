@@ -14,6 +14,7 @@ namespace sparse_nn {
 	inline Eigen::VectorXd subtractAndReturnMins(Eigen::MatrixXd& mat) {
 		Eigen::VectorXd mins = mat.rowwise().minCoeff();
 		mat.colwise() -= mins;
+
 		return mins;
 	}
 
@@ -21,7 +22,7 @@ namespace sparse_nn {
 		// keep max and unary separate operations
 		// it turns out to be much faster for some reason
 		Eigen::VectorXd maxs = mat.rowwise().maxCoeff();
-		maxs.noalias() = maxs.unaryExpr([](double x){ return std::max(1e-7, x);});
+		maxs.noalias() = maxs.unaryExpr([](double x){ return x < 1e-13 ? 1e-13 : x; });
 		mat.array().colwise() /= maxs.array();
 		
 		return maxs;

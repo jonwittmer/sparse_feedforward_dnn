@@ -1,10 +1,11 @@
 #include "autoencoder/autoencoder_interface_c.h"
-#include "autoencoder/autoencoder.h"
+#include "autoencoder/compression_base.h"
 #include "autoencoder/autoencoder_debug.h"
 #include "utils/timer.h"
 
 #include <chrono>
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <vector>
 
@@ -33,9 +34,9 @@ int batchSize;
 int batchIndex;
 int currTimestep;
 int maxTimestep = 0;
-std::vector<std::vector<double>> *currSharedDataBuffer;
-std::vector<std::vector<double>> *altDataBuffer;
-std::vector<std::vector<double>> *pingpongBufferPointers[2];
+std::vector<sparse_nn::Timestep> *currSharedDataBuffer;
+std::vector<sparse_nn::Timestep> *altDataBuffer;
+std::vector<sparse_nn::Timestep> *pingpongBufferPointers[2];
 int currBufferIndex;
 int altBufferIndex;
 int currBufferMinTimestep = -1;
@@ -46,33 +47,33 @@ bool exitFlag;
 bool decompressFlag;
 bool forwardModeFlag; 
 
+void *run_autoencoder_manager(void *args);
+
 void TestAutoencoder() {
 	// needed for linking to mangll
 	std::cout << "Autoencoder library loaded successfully!\n" << std::endl;
 }
 
-sparse_nn::Autoencoder *create_autoencoder(ae_parameters_t *aeParams) {
-	sparse_nn::Autoencoder* autoencoder;
-	if (shouldWriteDataToFile || storeNoCompress) {
-		autoencoder = new sparse_nn::AutoencoderDebug(aeParams->encoderDir, aeParams->decoderDir,
-																									aeParams->dataSize, aeParams->mpirank,
-																									shouldWriteDataToFile, debugMode);
-	}
-	else
-		autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
-																						 aeParams->dataSize, aeParams->mpirank,
-																						 debugMode);
-	
+std::unique_ptr<sparse_nn::CompressionBase> create_autoencoder(ae_parameters_t *aeParams) {
+  std::unique_ptr<sparse_nn::CompressionBase> autoencoder;
+	//if (shouldWriteDataToFile || storeNoCompress) {
+	//	autoencoder = new sparse_nn::AutoencoderDebug(aeParams->encoderDir, aeParams->decoderDir,
+	//																								aeParams->dataSize, aeParams->mpirank,
+	//																								shouldWriteDataToFile, debugMode);
+	//}
+	//else
+	//	autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
+	//																					 aeParams->dataSize, aeParams->mpirank,
+	//																					 debugMode);
+  autoencoder = std::make_unique<sparse_nn::SpaceAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+                                                              aeParams->dataSize, aeParams->nStates, 
+                                                              aeParams->mpirank, debugMode);
+
 	if (debugMode) {
 		std::cout << "Autoencoder in debug mode\n" << std::endl;
 	}
 	
-	return autoencoder;
-}
-
-void destroy_autoencoder(void *autoencoder) {
-	delete static_cast<sparse_nn::Autoencoder*>(autoencoder);
-	return;
+	return std::move(autoencoder);
 }
 
 void print_data(double **dataLocations) {
@@ -84,20 +85,21 @@ void print_data(double **dataLocations) {
 void copy_to_shared_buffer(double **dataLocations) {
 	sparse_nn::Timer copyTimer("[INTERFACE] copy from mangll");
 	copyTimer.start();
-	if (altDataBuffer->size() > batchIndex) {
-		for (int i = 0; i < nStates; i++) {
-			std::copy(dataLocations[i], dataLocations[i] + dataSize, &((*altDataBuffer)[batchIndex][0]) + i * dataSize);
-		}
-	} else if (altDataBuffer->size() == batchIndex) {
-		std::vector<double> tempVector(dataSize * nStates);
-		(*altDataBuffer).push_back(std::move(tempVector));
-		for (int i = 0; i < nStates; i++) {
-			std::copy(dataLocations[i], dataLocations[i] + dataSize, &((*altDataBuffer)[batchIndex][0]) + i * dataSize);
-		}
-	} else {
-		std::cout << "batch index too large - alt_data_buffer is not big enough" << std::endl;
-	}
-	copyTimer.stop();
+  // something has gone wrong with the indexing if this happens
+  if (altDataBuffer->size() < batchIndex) {
+    std::cout << "batch index too large - altDataBuffer is not big enough" << std::endl;
+    assert(false);
+  }
+
+  // expand altDataBuffer by one if needed
+  if (altDataBuffer->size() == batchIndex) {
+		altDataBuffer->emplace_back(dataSize * nStates, 0);
+  }
+  
+  for (int i = 0; i < nStates; i++) {
+    std::copy(dataLocations[i], dataLocations[i] + dataSize, &((*altDataBuffer)[batchIndex][0]) + i * dataSize);
+  }
+  copyTimer.stop();
 	
 	if (mpirank == VERBOSE_DEBUG) {
 		copyTimer.print();
@@ -110,8 +112,8 @@ void copy_from_shared_buffer(double **dataLocations) {
 	if ((*currSharedDataBuffer).size() > batchIndex) {
 		for (int i = 0; i < nStates; i++) {
 			std::copy((*currSharedDataBuffer)[batchIndex].begin() + i * dataSize,
-					  (*currSharedDataBuffer)[batchIndex].begin() + (i + 1) * dataSize,
-					  dataLocations[i]);
+                (*currSharedDataBuffer)[batchIndex].begin() + (i + 1) * dataSize,
+                dataLocations[i]);
 		}
 	} else {
 		std::cout << "batch index too large - batch_index is outside shared_buffer size" << std::endl;
@@ -124,14 +126,14 @@ void copy_from_shared_buffer(double **dataLocations) {
 
 void initialize_storage(int timestepSize) {
 	// create empty vector of the right size
-	auto tempVector = std::vector<double>(timestepSize, 0);
+	//auto tempVector = Timestep(timestepSize, 0);
 	for (int i = 0; i < 2; i++) {
-		pingpongBufferPointers[i] = new std::vector<std::vector<double>>(batchSize);
+		pingpongBufferPointers[i] = new std::vector<sparse_nn::Timestep>(batchSize, sparse_nn::Timestep(timestepSize, 0));
 
 		// copy temp vector into pingpong_buffer elements so each element has the right size
-		for (auto &item : (*pingpongBufferPointers[i])) {
-			item = tempVector;
-		}
+		//for (auto &item : (*pingpongBufferPointers[i])) {
+		//	item = tempVector;
+		//}
 	}
 	currBufferIndex = 0;
 	altBufferIndex = 1;
@@ -193,7 +195,7 @@ void *run_autoencoder_manager(void *args) {
 	
 	// lock the mutex during initialization
 	pthread_mutex_lock(&compressionMutex);
-	sparse_nn::Autoencoder *autoencoder = create_autoencoder(aeParams);
+  std::unique_ptr<sparse_nn::CompressionBase> autoencoder = create_autoencoder(aeParams);
 	
 	// signal parent process and unlock mutex
 	bufferReadyToCompress = false;

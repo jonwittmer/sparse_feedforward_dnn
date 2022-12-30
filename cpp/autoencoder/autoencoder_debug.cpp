@@ -1,4 +1,5 @@
 #include "autoencoder/autoencoder_debug.h"
+#include "autoencoder/batch_preparer.h"
 #include "autoencoder/compressed_batch.h"
 #include "normalization/normalization.h"
 #include "sparse/sparse_model.h"
@@ -13,38 +14,42 @@
 
 namespace sparse_nn {
 	AutoencoderDebug::AutoencoderDebug(const std::string encoderPath, const std::string decoderPath, int dataSize,
-																		 int mpirank, bool shouldWrite, bool debug) :
-		Autoencoder(encoderPath, decoderPath, dataSize,  mpirank, debug),
-		shouldWrite_(shouldWrite)
-	{}
+																		 int nStates, int mpirank, bool shouldWrite, double writeProbability, bool debug) :
+		Autoencoder(encoderPath, decoderPath, dataSize, nStates, mpirank, debug),
+		shouldWrite_(shouldWrite), 
+    writeProbability_(writeProbability)	{}
 	
-	void AutoencoderDebug::compressStates(const std::vector<std::vector<double>> &dataBuffer,
+	void AutoencoderDebug::compressStates(const std::vector<Timestep> &dataBuffer,
 																	 int startingTimestep, int currBatchSize) {
 		if (debugMode_ && mpirank_ == 0) {
 			std::cout << "[COMPRESS] Storing timesteps " << startingTimestep << "-" << startingTimestep + currBatchSize - 1 << std::endl;
 		}
+    
+    batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer);
 
 		if (shouldWrite_) {
-			writeDataToFile(dataBuffer);
+			writeDataToFile();
 		}
 		
-		copyVectorToMatrix(batchDataMatrix_, dataBuffer);		
 		CompressedBatch<Eigen::MatrixXd>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
 		batchStorage.data = batchDataMatrix_;
 		return;
 	}
 	
-	std::pair<int, int> AutoencoderDebug::prefetchDecompressedStates(std::vector<std::vector<double>>& dataBuffer,
+	std::pair<int, int> AutoencoderDebug::prefetchDecompressedStates(std::vector<Timestep>& dataBuffer,
 																const int latestTimestep) {
 		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
 		// decompress batch
 		if (debugMode_ && mpirank_ == 0) {
 			std::cout << "[DECOMPRESS] Fetching timestep " << latestTimestep << std::endl;
 		}
-
+    
 		CompressedBatch<Eigen::MatrixXd>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
 		batchDataMatrix_ = batchStorage.data;
-		copyMatrixToVector(batchDataMatrix_, dataBuffer);
+    if (batchDataMatrix_.rows() == 0 || batchDataMatrix_.cols() == 0) {
+      std::cout << "rank " << mpirank_ << " stored data has 0 shape at timestep " << latestTimestep << std::endl;
+    }
+		batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer);
 		
 		if (debugMode_ && mpirank_ == 0) {
 			std::cout << "[DECOMPRESS] Batch has timesteps " << batchStorage.getStartingTimestep();
@@ -68,11 +73,8 @@ namespace sparse_nn {
 		return compressedStates_.back();
 	}
 	
-	void AutoencoderDebug::writeDataToFile(const std::vector<std::vector<double>>& data) const {
-		// writing all ofthe data will take up an extremely large amount of storage
-		// only write part of it
-		double writeProbability = 0.0001;
-
+	void AutoencoderDebug::writeDataToFile() const {
+    // open up file to write data to
 		std::string filename = "data_storage_rank_" + std::to_string(mpirank_) + ".bin";
 		std::ofstream myFile(filename, std::ios::binary | std::ios::app);
 		if (!myFile.is_open()) {
@@ -80,15 +82,23 @@ namespace sparse_nn {
 			return;
 		}
 
-		for (const auto& singleTimestep : data) {
+    int nRows = batchDataMatrix_.rows();
+    auto singleVector = std::vector<double>(fullDimension_, 0);
+		for (int i = 0; i < nRows; ++i) {
 			// convert probability into integer for sampling
 			// see https://www.cplusplus.com/refrence/cstdlib/rand/
-			int integer_scaling = static_cast<int>(1. / writeProbability);
+			int integer_scaling = static_cast<int>(1. / writeProbability_);
 			int sample = rand() % integer_scaling;
 			if (sample == 0) {
-				// write all of the states for a single timestep if selected
-				myFile.write(reinterpret_cast<const char*>(&(singleTimestep[0])),
-							 std::streamsize(nStates_ * dataSize_ * sizeof(double)));
+        // not sure if this copy is needed, but interfacing with the raw storage is 
+        // awkward in Eigen
+        for (int j = 0; j < fullDimension_; ++j) {
+          singleVector.at(j) = batchDataMatrix_(i, j);
+        }
+
+        // write out to file
+				myFile.write(reinterpret_cast<const char*>(&(singleVector.at(0))),
+							 std::streamsize(fullDimension_ * sizeof(double)));
 			}
 		}
 		myFile.close();

@@ -16,6 +16,7 @@
 namespace sparse_nn {
 	SparseModel::SparseModel(const std::string configFilename) {
 		// parse json file to get list of filenames
+    std::cout << "loading neural network from " << configFilename << std::endl;
 		std::ifstream f(configFilename);
 		json allLayersInfo = json::parse(f);
 

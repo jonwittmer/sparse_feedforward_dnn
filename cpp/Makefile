@@ -2,7 +2,7 @@ CXX=icpc
 #SOURCE=main.cpp sparse/sparse_layer.cpp sparse/sparse_model.cpp sparse/layer.cpp sparse/dense_layer.cpp autoencoder/compressed_batch.cpp autoencoder/autoencoder.cpp
 INCLUDES := -I${EIGEN_DIR} -I${JSON_DIR} -I./ #-Isparse/ -Inormalization/ -Iautoencoder/ -Iutils/
 BUILD_DIR := ./build
-OBJS := $(BUILD_DIR)/sparse_layer.o $(BUILD_DIR)/sparse_layer.o $(BUILD_DIR)/dense_layer.o  $(BUILD_DIR)/layer.o $(BUILD_DIR)/sparse_model.o $(BUILD_DIR)/compressed_batch.o $(BUILD_DIR)/autoencoder.o $(BUILD_DIR)/compression_base.o $(BUILD_DIR)/batch_preparer.o  $(BUILD_DIR)/autoencoder_interface_c.o # ${BUILD_DIR}/autoencoder_debug.o
+OBJS := $(BUILD_DIR)/sparse_layer.o $(BUILD_DIR)/sparse_layer.o $(BUILD_DIR)/dense_layer.o  $(BUILD_DIR)/layer.o $(BUILD_DIR)/sparse_model.o $(BUILD_DIR)/compressed_batch.o $(BUILD_DIR)/autoencoder.o $(BUILD_DIR)/compression_base.o $(BUILD_DIR)/batch_preparer.o  $(BUILD_DIR)/autoencoder_interface_c.o  ${BUILD_DIR}/autoencoder_debug.o
 
 all: $(BUILD_DIR)/libautoencoder_c.so test
 

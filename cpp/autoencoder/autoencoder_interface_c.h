@@ -10,10 +10,14 @@ extern "C" {
 typedef struct {
 	int nStates;
 	int dataSize;
+  int nDofsPerElement;
 	int batchSize;
 	char *encoderDir;
 	char *decoderDir;
 	int mpirank;
+  char *compressionStrategy;
+  double writeProbability;
+  int debugMode;
 } ae_parameters_t;
 	
 void TestAutoencoder();

@@ -2,70 +2,77 @@
 
 #include <vector>
 #include <Eigen/Core>
+#include <iostream>
 
 namespace sparse_nn {
-  SpaceBatchPreparer::SpaceBatchPreparer(int dataSize, int nStates) :
-    dataSize_(dataSize), nStates_(nStates) {}
+  SpaceBatchPreparer::SpaceBatchPreparer() {} 
   
 	void SpaceBatchPreparer::copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) {		
-		int totalStatesToStore = dataBuffer.size() * nStates_;
-		mat.resize(totalStatesToStore, dataSize_); // eigen resize is a no-op if not needed
+    int nStates = dataBuffer.at(0).size();
+		int totalStatesToStore = dataBuffer.size() * nStates;
+    int dataSize = dataBuffer.at(0).at(0).size();
+		mat.resize(totalStatesToStore, dataSize); // eigen resize is a no-op if not needed
 
-		assert((mat.cols() * nStates_ == dataBuffer.at(0).size(), "dataBuffer timestep size does not match matrix"));
-		assert((mat.rows() / nStates_ == dataBuffer.size(), "allocated matrix does not have enough rows for all timesteps and states"));
+		assert((mat.rows() / nStates == dataBuffer.size(), "allocated matrix does not have enough rows for all timesteps and states"));
 		
-		int baseRow = 0;
+		int currRow = 0;
 		for (const auto& fullState : dataBuffer) {
-			for (int i = 0; i < fullState.size(); ++i) {
-				int currRow = baseRow + i / dataSize_;
-				int currCol = i % dataSize_;
-				mat(currRow, currCol) = fullState.at(i);
+      for(const auto& currState : fullState) {
+        for (int i = 0; i < currState.size(); ++i) {
+          mat(currRow, i) = currState.at(i);
+        }
+        ++currRow;
 			}
-			baseRow += nStates_;
 		}
 	}
 	
 	void SpaceBatchPreparer::copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) {
-		// assumes that dataBuffer already has enough storage space. This is because
-		// dataBuffer is managed by other code.
-		assert((mat.cols() * nStates_ == dataBuffer.at(0).size(), "dataBuffer timestep size does not match matrix"));
-		assert((mat.rows() / nStates_ <= dataBuffer.size(), "dataBuffer does not have enough timesteps allocated"));
+    int nStates = dataBuffer.at(0).size();
+    assert((nStates > 0, "dataBuffer does not have all states allocated"));
+    assert((mat.rows() / nStates <= dataBuffer.size(), "dataBuffer does not have enough timesteps allocated"));
 		
-		int vecIndex;
 		for (int i = 0; i < mat.rows(); ++i) {
-			vecIndex = i / nStates_;
-			for (int j = 0; j < dataSize_; ++j) {
-				dataBuffer.at(vecIndex).at(i % nStates_ * dataSize_ + j) = mat(i, j);
+			int timestepIndex = i / nStates;
+      int stateIndex = i % nStates;
+			for (int j = 0; j < mat.cols(); ++j) {
+				dataBuffer.at(timestepIndex).at(stateIndex).at(j) = mat(i, j);
 			}
 		}
 	}
 
 
 
-  TimeBatchPreparer::TimeBatchPreparer(int nDofsPerElement, int nStates, int nTimestepsPerBatch) :
-    dataSize_(nDofsPerElement), nStates_(nStates), nTimestepsPerBatch_(nTimestepsPerBatch) {}
+  TimeBatchPreparer::TimeBatchPreparer(int nDofsPerElement, int nTimestepsPerBatch) :
+    nDofsPerElement_(nDofsPerElement), nTimestepsPerBatch_(nTimestepsPerBatch) {}
   
-	void TimeBatchPreparer::copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) {		
+	void TimeBatchPreparer::copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) {
     assert((nTimestepsPerBatch_ == dataBuffer.size(), "dataBuffer does not match nTimestepsPerBatch"));
-    int nElements = dataBuffer.at(0).size()  / nStates_ / dataSize_;
 
-    // Each element is treated as it's own state, so the total number of states == nStates_ * nElements 
-    int totalStatesToStore = nElements * nStates_;
-		mat.resize(totalStatesToStore, dataSize_ * nTimestepsPerBatch_); // dataSize_ is nDofsPerElement
+    int nLocalElements = dataBuffer.at(0).at(0).size() / nDofsPerElement_;
+    int nStates = dataBuffer.at(0).size();
+    assert((nLocalElements * nDofsPerElement_ == dataBuffer.at(0).at(0).size(), 
+            "dataBuffer.at(0).at(0).size() must be a multiple of nDofsPerElement"));
 
-		assert((mat.cols() == dataSize_ * nTimestepsPerBatch_, "dataBuffer timestep size does not match matrix"));
-		assert((mat.rows() * dataSize_  == dataBuffer.at(0).size(), "allocated matrix does not have enough rows for all timesteps and states"));
+    // Each element is treated as it's own state, so the total number of states == nStates * nLocalElements 
+    int totalStatesToStore = nLocalElements * nStates;
+		mat.resize(totalStatesToStore, nDofsPerElement_ * nTimestepsPerBatch_);
+
+		assert((mat.cols() == nDofsPerElement_ * nTimestepsPerBatch_, "dataBuffer timestep size does not match matrix"));
+		assert((mat.rows() == nLocalElements * dataBuffer.at(0).size(), "allocated matrix does not have enough rows for all timesteps and states"));
     
     int t = 0;
     for (const auto& timestep : dataBuffer) {
-      int colStart = dataSize_ * t;
-      for (int state = 0; state < nStates_; ++state) {
-        int stateOffset = state * nElements;
-        for (int element = 0; element < nElements; ++element){
+      int colStart = nDofsPerElement_ * t;
+      for (int state = 0; state < nStates; ++state) {
+        int stateOffset = state * nLocalElements;
+        for (int element = 0; element < nLocalElements; ++element){
           int row = stateOffset + element;
-          for (int i = 0; i < dataSize_; ++i) {
-            int vectorIndex = row * dataSize_ + i;
-            mat(row, colStart + i) = timestep[vectorIndex];
+          int elementOffset = element * nDofsPerElement_;
+          for (int i = 0; i < nDofsPerElement_; ++i) {
+            if (row >= mat.rows() || colStart >= mat.cols() || row < 0 || colStart < 0) {
+              std::cout << "attempting to write (" << row  << ", " << colStart << ") from array of size (" << mat.rows() << ", " << mat.cols() << ")" << std::endl;
+            }
+            mat(row, colStart + i) = timestep.at(state).at(elementOffset + i);
           }
         }
       }
@@ -74,21 +81,25 @@ namespace sparse_nn {
 	}
 	
 	void TimeBatchPreparer::copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) {
-    int nElements = dataBuffer.at(0).size()  / nStates_ / dataSize_;
+    int nLocalElements = dataBuffer.at(0).at(0).size() / nDofsPerElement_;
+    int nStates = dataBuffer.at(0).size();
     int t = 0;
     for (auto& timestep : dataBuffer) {
-      int colStart = dataSize_ * t;
-      for (int state = 0; state < nStates_; ++state) {
-        int stateOffset = state * nElements;
-        for (int element = 0; element < nElements; ++element){
+      int colStart = nDofsPerElement_ * t;
+      for (int state = 0; state < nStates; ++state) {
+        int stateOffset = state * nLocalElements;
+        for (int element = 0; element < nLocalElements; ++element){
           int row = stateOffset + element;
-          for (int i = 0; i < dataSize_; ++i) {
-            int vectorIndex = row * dataSize_ + i;
-            timestep[vectorIndex] = mat(row, colStart + i);
+          if (row >= mat.rows() || colStart >= mat.cols() || row < 0 || colStart < 0) {
+            std::cout << "attempting to read (" << row  << ", " << colStart << ") from array of size (" << mat.rows() << ", " << mat.cols() << ")" << std::endl;
+          }
+          int elementOffset = element * nDofsPerElement_;
+          for (int i = 0; i < nDofsPerElement_; ++i) {
+            timestep.at(state).at(elementOffset + i) = mat(row, colStart + i);
           }
         }
       }
       ++t;
     }
-	}
+  }
 } // namespace sparse_nn

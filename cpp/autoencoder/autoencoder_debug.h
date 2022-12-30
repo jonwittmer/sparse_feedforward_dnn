@@ -1,4 +1,5 @@
 #pragma once
+#include "autoencoder/batch_preparer.h"
 #include "autoencoder/autoencoder.h"
 #include "autoencoder/compressed_batch.h"
 #include "sparse/sparse_model.h"
@@ -14,18 +15,49 @@ namespace sparse_nn {
 	class AutoencoderDebug : public Autoencoder {
 	public:
 		AutoencoderDebug(const std::string encoderPath, const std::string decoderPath, int dataSize,
-                     int nStates, int mpirank, bool shouldWrite, bool debug);
+                     int nStates, int mpirank, bool shouldWrite, double writeProbability, bool debug);
 		
-		virtual void compressStates(const std::vector<std::vector<double>> &dataBuffer, int startingTimestep, int currBatchSize) override;
-		virtual std::pair<int, int> prefetchDecompressedStates(std::vector<std::vector<double>> &dataBuffer,
+		virtual void compressStates(const std::vector<Timestep> &dataBuffer, int startingTimestep, int currBatchSize) override;
+		virtual std::pair<int, int> prefetchDecompressedStates(std::vector<Timestep> &dataBuffer,
 													   const int latestTimestep) override;
 		
 	protected:
-		void writeDataToFile(const std::vector<std::vector<double>>& data) const;
+		void writeDataToFile() const;
 		bool shouldWrite_;
+    double writeProbability_;
+    int fullDimension_; // input dimension to autoencoder
 
-	private:
 		std::vector<CompressedBatch<Eigen::MatrixXd>> compressedStates_;
 		CompressedBatch<Eigen::MatrixXd>& getBatchStorage(const int startingTimestep, const int endingTimestep);
 	};
+
+
+  class SpaceAutoencoderDebug : public AutoencoderDebug {
+  public:
+  SpaceAutoencoderDebug(const std::string encoderPath, const std::string decoderPath, int dataSize,  
+                   int nStates, int mpirank, bool shouldWrite, 
+                   double writeProbability, bool debug) : AutoencoderDebug(encoderPath, decoderPath, dataSize,  
+                                                                           nStates, mpirank, shouldWrite, writeProbability, debug) {
+      fullDimension_ = dataSize;
+      batchPreparer_ = std::make_unique<SpaceBatchPreparer>();
+      //std::cout << "using SpaceAutoencoderDebug" << std::endl;
+    }
+  };
+  
+
+  class TimeAutoencoderDebug : public AutoencoderDebug {
+  public:
+  // nDofsPerElement is dataSize in Autoencoder
+  TimeAutoencoderDebug(const std::string encoderPath, const std::string decoderPath, int nDofsPerElement,  
+                       int nStates, int nTimestepsPerBatch, 
+                       int mpirank, bool shouldWrite, 
+                       double writeProbability, bool debug) : AutoencoderDebug(encoderPath, decoderPath, nDofsPerElement,  
+                                                                               nStates, mpirank, shouldWrite, 
+                                                                               writeProbability, debug) {
+      
+      fullDimension_ = nDofsPerElement * nTimestepsPerBatch;
+      batchPreparer_ = std::make_unique<TimeBatchPreparer>(nDofsPerElement, nTimestepsPerBatch);
+      //std::cout << "using TimeAutoencoderDebug" << std::endl;
+    }
+  };
 }

@@ -12,10 +12,6 @@
 #define DEBUG_RANK -1
 #define VERBOSE_DEBUG -1
 
-bool debugMode = true;
-bool storeNoCompress = false;
-bool shouldWriteDataToFile = false;
-
 /* pthreads variables for spinning off compression. */
 pthread_t compressionThread;
 pthread_cond_t sharedDataCond;
@@ -27,12 +23,13 @@ bool bufferReadyToCompress;
 
 /* shared data */
 bool sharedIsLast;
-int dataSize;
+int globalDataSize;
 int nStates = 36;
 int mpirank;
 int batchSize;
 int batchIndex;
 int currTimestep;
+int compressionTimestep;
 int maxTimestep = 0;
 std::vector<sparse_nn::Timestep> *currSharedDataBuffer;
 std::vector<sparse_nn::Timestep> *altDataBuffer;
@@ -56,23 +53,43 @@ void TestAutoencoder() {
 
 std::unique_ptr<sparse_nn::CompressionBase> create_autoencoder(ae_parameters_t *aeParams) {
   std::unique_ptr<sparse_nn::CompressionBase> autoencoder;
-	//if (shouldWriteDataToFile || storeNoCompress) {
-	//	autoencoder = new sparse_nn::AutoencoderDebug(aeParams->encoderDir, aeParams->decoderDir,
-	//																								aeParams->dataSize, aeParams->mpirank,
-	//																								shouldWriteDataToFile, debugMode);
-	//}
-	//else
-	//	autoencoder = new sparse_nn::Autoencoder(aeParams->encoderDir, aeParams->decoderDir,
-	//																					 aeParams->dataSize, aeParams->mpirank,
-	//																					 debugMode);
-  autoencoder = std::make_unique<sparse_nn::SpaceAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
-                                                              aeParams->dataSize, aeParams->nStates, 
-                                                              aeParams->mpirank, debugMode);
+  bool shouldWriteDataToFile = (aeParams->writeProbability > 0);
 
-	if (debugMode) {
-		std::cout << "Autoencoder in debug mode\n" << std::endl;
-	}
-	
+  std::string compressionStrategy = aeParams->compressionStrategy;
+  if (shouldWriteDataToFile) {
+    if (compressionStrategy == "space" || compressionStrategy == "default") {
+      autoencoder = std::make_unique<sparse_nn::SpaceAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+                                                                       aeParams->dataSize, aeParams->nStates,
+                                                                       aeParams->mpirank, shouldWriteDataToFile, 
+                                                                       aeParams->writeProbability, aeParams->debugMode);
+    } else if (compressionStrategy == std::string("time")) {
+      if (aeParams->mpirank == 0) {
+        std::cout << "creating TimeAutoencoderDebug" << std::endl;
+      }
+      autoencoder = std::make_unique<sparse_nn::TimeAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+                                                                      aeParams->nDofsPerElement, aeParams->nStates, 
+                                                                      aeParams->batchSize,
+                                                                      aeParams->mpirank, shouldWriteDataToFile, 
+                                                                      aeParams->writeProbability, aeParams->debugMode);
+    } else {
+      std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in debug mode.";
+      std::cout << "Choose between 'space', 'time', or 'default' which is 'space'." << std::endl;
+    }
+  } else {
+    if (compressionStrategy == "space" || compressionStrategy == "default") {
+      autoencoder = std::make_unique<sparse_nn::SpaceAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+                                                                  aeParams->dataSize, aeParams->nStates,
+                                                                  aeParams->mpirank, aeParams->debugMode);
+    } else if (compressionStrategy == std::string("time")) {
+      autoencoder = std::make_unique<sparse_nn::TimeAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+                                                                 aeParams->nDofsPerElement, aeParams->nStates, 
+                                                                 aeParams->batchSize,
+                                                                 aeParams->mpirank, aeParams->debugMode);
+    } else {
+      std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in pruduction mode.";
+      std::cout << "Choose between 'space', 'time', or 'default' which is 'space'." << std::endl;
+    }
+  }
 	return std::move(autoencoder);
 }
 
@@ -82,7 +99,7 @@ void print_data(double **dataLocations) {
 	}
 }
 
-void copy_to_shared_buffer(double **dataLocations) {
+void copy_to_shared_buffer(double **dataLocations, int dataSize) {
 	sparse_nn::Timer copyTimer("[INTERFACE] copy from mangll");
 	copyTimer.start();
   // something has gone wrong with the indexing if this happens
@@ -93,11 +110,12 @@ void copy_to_shared_buffer(double **dataLocations) {
 
   // expand altDataBuffer by one if needed
   if (altDataBuffer->size() == batchIndex) {
-		altDataBuffer->emplace_back(dataSize * nStates, 0);
+    sparse_nn::FullState emptyVector(dataSize, 0);
+		altDataBuffer->emplace_back(nStates, emptyVector);
   }
   
   for (int i = 0; i < nStates; i++) {
-    std::copy(dataLocations[i], dataLocations[i] + dataSize, &((*altDataBuffer)[batchIndex][0]) + i * dataSize);
+    std::copy(dataLocations[i], dataLocations[i] + dataSize, &(altDataBuffer->at(batchIndex).at(i).at(0)));
   }
   copyTimer.stop();
 	
@@ -111,8 +129,8 @@ void copy_from_shared_buffer(double **dataLocations) {
 	copyTimer.start();
 	if ((*currSharedDataBuffer).size() > batchIndex) {
 		for (int i = 0; i < nStates; i++) {
-			std::copy((*currSharedDataBuffer)[batchIndex].begin() + i * dataSize,
-                (*currSharedDataBuffer)[batchIndex].begin() + (i + 1) * dataSize,
+			std::copy(currSharedDataBuffer->at(batchIndex).at(i).begin(),
+                currSharedDataBuffer->at(batchIndex).at(i).end(),
                 dataLocations[i]);
 		}
 	} else {
@@ -124,16 +142,13 @@ void copy_from_shared_buffer(double **dataLocations) {
 	}
 }
 
-void initialize_storage(int timestepSize) {
+void initialize_storage(int nStates, int dataSize) {
 	// create empty vector of the right size
 	//auto tempVector = Timestep(timestepSize, 0);
 	for (int i = 0; i < 2; i++) {
-		pingpongBufferPointers[i] = new std::vector<sparse_nn::Timestep>(batchSize, sparse_nn::Timestep(timestepSize, 0));
-
-		// copy temp vector into pingpong_buffer elements so each element has the right size
-		//for (auto &item : (*pingpongBufferPointers[i])) {
-		//	item = tempVector;
-		//}
+		pingpongBufferPointers[i] = new std::vector<sparse_nn::Timestep>(batchSize, 
+                                     sparse_nn::Timestep(nStates, 
+                                       sparse_nn::FullState(dataSize, 0)));
 	}
 	currBufferIndex = 0;
 	altBufferIndex = 1;
@@ -141,12 +156,68 @@ void initialize_storage(int timestepSize) {
 	altDataBuffer = pingpongBufferPointers[altBufferIndex];
 }
 
+bool testAutoencoderDebug(const ae_parameters_t *aeParams) {
+  // figure out how many timesteps are required to fill up pingpong buffer
+  int totalDataSize = aeParams->nStates * aeParams->dataSize * aeParams->batchSize;
+  
+  // malloc C array with correct dimensions for this mpirank for batchSize timesteps
+  double *inputArrayContinuous = (double *)malloc(totalDataSize * sizeof(double));
+  double **inputArray = (double **)malloc(aeParams->nStates * aeParams->batchSize * sizeof(double*));
+  double *outputArrayContinuous = (double *)malloc(totalDataSize * sizeof(double));
+  double **outputArray = (double **)malloc(aeParams->nStates * aeParams->batchSize * sizeof(double*));
+  for (int i = 0; i < aeParams->nStates * aeParams->batchSize; ++i) {
+    inputArray[i] = &inputArrayContinuous[i * aeParams->dataSize];
+    outputArray[i] = &outputArrayContinuous[i * aeParams->dataSize];
+  }
+
+  // fill C array with random numbers
+  for (int i = 0; i < totalDataSize; ++i) {
+    // pseudorandom doubles
+    inputArrayContinuous[i] = static_cast<double>(rand()) / static_cast<double>(rand() + 1);
+  }
+
+  // invoke compress_from_array batchSize times
+  for (int t = 0; t < aeParams->batchSize; ++t) {
+    compress_from_array(&(inputArray[t * aeParams->nStates]), t, 0);
+  }
+  // hack to make sure timestep is read before it is changed
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+  // reset min/max timesteps to force reloading of data
+  currBufferMinTimestep = -1;
+  currBufferMaxTimestep = -1;
+  altBufferMinTimestep = -1;
+  altBufferMaxTimestep = -1;
+
+  // invoke decompress_from_array batchSize times
+  for (int t = aeParams->batchSize - 1; t > -1; --t) {
+    decompress_to_array(&outputArray[t * aeParams->nStates], t, 0);
+  }
+
+  // check that output data matches input data
+  bool failed = false;
+  for (int i = 0; i < totalDataSize; ++i) {
+    if (outputArrayContinuous[i] != inputArrayContinuous[i]) {
+      failed = true;
+      std::cout << "rank " << mpirank << ": at index " << i << " ";
+      std::cout << inputArrayContinuous[i] << " != " << outputArrayContinuous[i] << std::endl;
+    }
+  }
+
+  // cleanup
+  free(inputArray);
+  free(inputArrayContinuous);
+  free(outputArray);
+  free(outputArrayContinuous);
+  return failed;
+}
+
 void spawn_autoencoder_thread(ae_parameters_t *aeParams) {
 	// initialize pthread synchronization variables
 	bufferReadyToCompress = true;
 	bufferIsFull = false;
+  globalDataSize = aeParams->dataSize;
 	batchSize = aeParams->batchSize;
-	dataSize = aeParams->dataSize;
 	nStates = aeParams->nStates;
 	mpirank = aeParams->mpirank;
 	
@@ -164,9 +235,19 @@ void spawn_autoencoder_thread(ae_parameters_t *aeParams) {
 	while (bufferReadyToCompress) {
 		pthread_cond_wait(&compressionCond, &compressionMutex);
 	}
-	std::cout << "autoencoder spawned\n" << std::endl;
 	pthread_cond_signal(&compressionCond);
 	pthread_mutex_unlock(&compressionMutex);
+
+  // test that copy-retrieve is working correctly in AutoencoderDebug class
+  if (aeParams->writeProbability > 0) {
+    bool failed = testAutoencoderDebug(aeParams);
+    if (!failed) {
+      std::cout << "testAutoencoderDebug passed" << std::endl;
+    } else {
+      std::cout << "testAutoencoderDebug failed to store and retrieve identically\n" << std::endl;
+    }
+    assert(!failed);
+  }
 }
 
 void clear_affinity_mask() {
@@ -185,13 +266,13 @@ void clear_affinity_mask() {
 
 void *run_autoencoder_manager(void *args) {
 	// allow thread to run on any processor
-	clear_affinity_mask();
+	// clear_affinity_mask();
 
 	// pthreads requires single void * argument 
 	ae_parameters_t *aeParams = static_cast<ae_parameters_t *>(args);
 
 	// create the pingpong buffers and initialize them
-	initialize_storage(aeParams->nStates * aeParams->dataSize);
+	initialize_storage(aeParams->nStates, aeParams->dataSize);
 	
 	// lock the mutex during initialization
 	pthread_mutex_lock(&compressionMutex);
@@ -210,6 +291,7 @@ void *run_autoencoder_manager(void *args) {
 		}
 		// acquire shared_data_mutex - no cond_wait needed since we release mutex in calling thread and wait on condition there
 		pthread_mutex_lock(&sharedDataMutex);
+
 		// exit if commanded
 		if (exitFlag) {
 			// free the shared locs memory
@@ -217,7 +299,7 @@ void *run_autoencoder_manager(void *args) {
 			delete(pingpongBufferPointers[1]);
 			
 			// release lock so mangll can continue to solve pde
-		    bufferReadyToCompress = false;
+      bufferReadyToCompress = false;
 			pthread_cond_signal(&compressionCond);
 			pthread_mutex_unlock(&compressionMutex);
 			std::cout << "Exiting from thread " << mpirank << std::endl;
@@ -235,10 +317,9 @@ void *run_autoencoder_manager(void *args) {
 			altDataBuffer = pingpongBufferPointers[altBufferIndex];
 
 			// make copy of timestep since main thread modifies this
-			int localCurrTimestep = currTimestep;
 			
 			if (mpirank == 0 && sharedIsLast) {
-				std::cout << "Shared is last, timestep " << localCurrTimestep << std::endl;
+				std::cout << "Shared is last, timestep " << compressionTimestep << std::endl;
 			}
 			
 			// reset condition variable to enable mangll to continue solving
@@ -247,11 +328,12 @@ void *run_autoencoder_manager(void *args) {
 			pthread_mutex_unlock(&sharedDataMutex);
 			
 			// go ahead with compressing
-			if (sharedIsLast) { maxTimestep = currTimestep; }
+			// if (sharedIsLast) { maxTimestep = currTimestep; }
+      if (currTimestep > maxTimestep) { maxTimestep = currTimestep; }
 			int currBatchSize = sharedIsLast ? batchIndex : batchSize;
 			// this handles the case where the batch is full (batchIndex set to 0)
 			currBatchSize = currBatchSize == 0 ? batchSize : currBatchSize;
-			int startingTimestep = localCurrTimestep - currBatchSize + 1;
+			int startingTimestep = compressionTimestep - currBatchSize + 1;
 			if (mpirank == DEBUG_RANK) {
 				std::cout << "startingTimestep: " << startingTimestep;
 				std::cout << " currBatchSize: " <<  currBatchSize << std::endl;
@@ -266,12 +348,10 @@ void *run_autoencoder_manager(void *args) {
 			sparse_nn::Timer decompTimer("[INTERFACE] decompress");
 			decompTimer.start();
 			
-			int localCurrTimestep = currTimestep;
-			
-			// check if localCurrTimestep has been prefetched
-			if (localCurrTimestep < altBufferMinTimestep || localCurrTimestep > altBufferMaxTimestep) {
+			// check if compressionTimestep has been prefetched
+			if (compressionTimestep < altBufferMinTimestep || compressionTimestep > altBufferMaxTimestep) {
 				auto fetchedTimesteps = autoencoder->prefetchDecompressedStates(*(pingpongBufferPointers[altBufferIndex]),
-																				localCurrTimestep);
+                                                                        compressionTimestep);
 				altBufferMinTimestep = fetchedTimesteps.first;
 				altBufferMaxTimestep = fetchedTimesteps.second;
 			}
@@ -294,13 +374,13 @@ void *run_autoencoder_manager(void *args) {
 			int nextBatchTimestep;
 			if (!forwardModeFlag && currBufferMinTimestep > 0) {
 				nextBatchTimestep = currBufferMinTimestep - 1;
-				
 			} else {
 				nextBatchTimestep = currBufferMaxTimestep + 1;
 			}
+      
 			if (nextBatchTimestep >= 0 && nextBatchTimestep <= maxTimestep) {
 				auto fetchedTimesteps = autoencoder->prefetchDecompressedStates(*(pingpongBufferPointers[altBufferIndex]),
-																				nextBatchTimestep);
+                                                                        nextBatchTimestep);
 				altBufferMinTimestep = fetchedTimesteps.first;
 				altBufferMaxTimestep = fetchedTimesteps.second;
 			}
@@ -333,7 +413,7 @@ void compress_from_array(double **localStateLocations, int timestep, int isLast)
 	// reset batch index
 	if (timestep == 0) { batchIndex = 0; }
 	
-	copy_to_shared_buffer(localStateLocations);
+	copy_to_shared_buffer(localStateLocations, globalDataSize);
 	
 	batchIndex = (batchIndex + 1) % batchSize;
 	if (batchIndex == 0 || sharedIsLast) {
@@ -352,7 +432,11 @@ void compress_from_array(double **localStateLocations, int timestep, int isLast)
 		}
 		
 		bufferReadyToCompress = true;		
-		
+    
+    // only change this when we have the lock so that the compression 
+    // thread has the latest timestep in batch
+    compressionTimestep = currTimestep;
+
 		// we need to release sharedDataMutex so that compression can switch buffers
 		pthread_mutex_unlock(&sharedDataMutex);
 		pthread_cond_signal(&compressionCond);
@@ -394,7 +478,9 @@ void decompress_to_array(double **localStateLocations, int requestedTimestep, in
 		}
 		
 		bufferReadyToCompress = true;
-		
+	
+    compressionTimestep = requestedTimestep;
+	
 		// we need to release sharedDataMutex so that compression can switch buffers
 		// signals compression thread to prefetch the next batch
 		pthread_mutex_unlock(&sharedDataMutex);

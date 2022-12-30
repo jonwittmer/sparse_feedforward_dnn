@@ -1,11 +1,11 @@
 #pragma once
 
+#include "autoencoder/batch_preparer.h"
 #include "autoencoder/compression_base.h"
 #include "autoencoder/compressed_batch.h"
 #include "sparse/sparse_model.h"
 
 #include <iostream>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,8 +22,11 @@ namespace sparse_nn {
 													   const int latestTimestep) override;
 		
 	protected:
+    void verbosePrinting(const CompressedBatch<Eigen::MatrixXf> &batchStorage);
+
 		SparseModel encoder_;
 		SparseModel decoder_;
+    int batchSize_ = 0;
   };
   
   class SpaceAutoencoder : public Autoencoder {
@@ -31,7 +34,7 @@ namespace sparse_nn {
   SpaceAutoencoder(const std::string encoderPath, const std::string decoderPath, int dataSize,  
                    int nStates, int mpirank, bool debug) : Autoencoder(encoderPath, decoderPath, dataSize,  
                                                                        nStates, mpirank, debug) {
-      batchPreparer_ = std::make_unique<SpaceBatchPreparer>(dataSize, nStates);
+      batchPreparer_ = std::make_unique<SpaceBatchPreparer>();
     }
   };
   
@@ -41,7 +44,7 @@ namespace sparse_nn {
   TimeAutoencoder(const std::string encoderPath, const std::string decoderPath, int nDofsPerElement,  
                   int nStates, int nTimestepsPerBatch, int mpirank, bool debug) : Autoencoder(encoderPath, decoderPath, nDofsPerElement,  
                                                                                               nStates, mpirank, debug) {
-      batchPreparer_ = std::make_unique<TimeBatchPreparer>(nDofsPerElement, nStates, nTimestepsPerBatch);
+      batchPreparer_ = std::make_unique<TimeBatchPreparer>(nDofsPerElement, nTimestepsPerBatch);
     }
   };
 }

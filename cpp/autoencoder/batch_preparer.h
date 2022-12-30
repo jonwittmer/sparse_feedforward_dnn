@@ -4,7 +4,8 @@
 #include <Eigen/Core>
 
 namespace sparse_nn {
-  using Timestep = std::vector<double>;
+  using FullState = std::vector<double>;
+  using Timestep = std::vector<FullState>;
 
   class BatchPreparer {
   public:
@@ -15,24 +16,19 @@ namespace sparse_nn {
 
   class SpaceBatchPreparer : public BatchPreparer {
   public:
-    SpaceBatchPreparer(int dataSize, int nStates);
+    SpaceBatchPreparer();
     virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) override;
-    virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) override;
-    
-  private:
-    int nStates_;
-    int dataSize_;
+    virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) override;    
   };
 
   class TimeBatchPreparer : public BatchPreparer {
   public:
-    TimeBatchPreparer(int dataSize, int nStates, int nTimestepsPerBatch);
+    TimeBatchPreparer(int nDofsPerElement,  int nTimestepsPerBatch);
     virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) override;
     virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) override;
     
   private:
-    int nStates_;
-    int dataSize_;
+    int nDofsPerElement_;
     int nTimestepsPerBatch_;
   };
 } // namespace sparse_nn

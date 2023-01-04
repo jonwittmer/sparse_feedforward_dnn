@@ -1,6 +1,6 @@
 #include "autoencoder/autoencoder_debug.h"
-#include "autoencoder/batch_preparer.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/batch_preparer.h"
+#include "batch_preparation/compressed_batch.h"
 #include "normalization/normalization.h"
 #include "sparse/sparse_model.h"
 #include "utils/timer.h"

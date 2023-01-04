@@ -18,10 +18,10 @@ $(BUILD_DIR)/layer.o: sparse/layer.cpp
 $(BUILD_DIR)/dense_layer.o: sparse/dense_layer.cpp
 	$(CXX) ${INCLUDES}  -c -fPIC $^ -o $@  -march=native -O3
 
-$(BUILD_DIR)/compressed_batch.o: autoencoder/compressed_batch.cpp
+$(BUILD_DIR)/compressed_batch.o: batch_preparation/compressed_batch.cpp
 	$(CXX) ${INCLUDES}  -c -fPIC $^ -o $@  -march=native -O3
 
-$(BUILD_DIR)/batch_preparer.o: autoencoder/batch_preparer.cpp 
+$(BUILD_DIR)/batch_preparer.o: batch_preparation/batch_preparer.cpp 
 	$(CXX) ${INCLUDES}  -c -fPIC $^ -o $@  -march=native -O3 
 
 $(BUILD_DIR)/compression_base.o: autoencoder/compression_base.cpp 

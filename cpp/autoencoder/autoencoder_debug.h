@@ -1,7 +1,7 @@
 #pragma once
-#include "autoencoder/batch_preparer.h"
+#include "batch_preparation/batch_preparer.h"
 #include "autoencoder/autoencoder.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/compressed_batch.h"
 #include "sparse/sparse_model.h"
 
 #include <iostream>
@@ -56,8 +56,24 @@ namespace sparse_nn {
                                                                                writeProbability, debug) {
       
       fullDimension_ = nDofsPerElement * nTimestepsPerBatch;
-      batchPreparer_ = std::make_unique<TimeBatchPreparer>(nDofsPerElement, nTimestepsPerBatch);
+      batchPreparer_ = std::make_unique<TimeBatchPreparer>(nDofsPerElement, nTimestepsPerBatch, 36, 1);
       //std::cout << "using TimeAutoencoderDebug" << std::endl;
+    }
+  };
+
+
+  class TimeRkAutoencoderDebug : public AutoencoderDebug {
+  public:
+  // nDofsPerElement is dataSize in Autoencoder
+  TimeRkAutoencoderDebug(const std::string encoderPath, const std::string decoderPath, int nDofsPerElement,  
+                         int nStates, int nTimestepsPerBatch, 
+                         int mpirank, bool shouldWrite, 
+                         double writeProbability, bool debug) : AutoencoderDebug(encoderPath, decoderPath, nDofsPerElement,  
+                                                                                 nStates, mpirank, shouldWrite, 
+                                                                                 writeProbability, debug) {
+      // treat rk stages as part of same state
+      fullDimension_ = nDofsPerElement * nTimestepsPerBatch * 4;
+      batchPreparer_ = std::make_unique<TimeBatchPreparer>(nDofsPerElement, nTimestepsPerBatch, 9, 4);
     }
   };
 }

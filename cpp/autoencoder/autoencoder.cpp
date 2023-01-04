@@ -1,6 +1,6 @@
 #include "autoencoder/autoencoder.h"
-#include "autoencoder/batch_preparer.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/batch_preparer.h"
+#include "batch_preparation/compressed_batch.h"
 #include "normalization/normalization.h"
 #include "sparse/sparse_model.h"
 #include "utils/timer.h"
@@ -58,11 +58,12 @@ namespace sparse_nn {
 		TIME_CODE(
       batchStorage.mins = subtractAndReturnMins(batchDataMatrix_);		
       batchStorage.ranges = divideAndReturnRanges(batchDataMatrix_);,
-      "[COMPRESS] normalization"
+             "[COMPRESS] normalization"
     );
 
 		// do compression
-		TIME_CODE(batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());, "[COMPRESS] compression");
+		TIME_CODE(
+      batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());, "[COMPRESS] compression");
 		
     verbosePrinting(batchStorage);
 	}
@@ -84,6 +85,12 @@ namespace sparse_nn {
         "[DECOMPRESS] unnormalize"
       );
     }
+    
+    if (batchDataMatrix_.rows() == 0 || batchDataMatrix_.cols() == 0) {
+      if (true) {
+        std::cout << "Something went wrong with retrieving timestep " << latestTimestep << std::endl;
+      }
+    }
 
 		TIME_CODE(batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer);, "[DECOMPRESS] copy to vector");
 
@@ -101,6 +108,10 @@ namespace sparse_nn {
         std::cout << "[COMPRESS] Relative decompression error for batch: " << relError * 100;
         std::cout << "%" << std::endl;
       }
+      // std::cout << "Decoded mat (0, 0): " << decodedMat(0, 0) << "  original: " << batchDataMatrix_(0, 0) << std::endl;
+      // std::cout << "\n" << "Decoded mat: " << decodedMat(0, 1) << ", " << decodedMat(0, 2)  << ", "<< decodedMat(0, 3) << std::endl;
+      // std::cout << "\n" << "batchStorage.data: " << batchStorage.data(0, 1) << ", " << batchStorage.data(0, 2)  << ", ";
+      // std::cout << batchStorage.data(0, 3) << std::endl;
       std::cout << "[COMPRESS] True matrix norm: ";
       std::cout << batchNorm << std::endl;
     }

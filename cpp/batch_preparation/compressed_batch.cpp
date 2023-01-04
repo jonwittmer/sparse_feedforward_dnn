@@ -1,4 +1,4 @@
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/compressed_batch.h"
 
 #include <Eigen/Core>
 

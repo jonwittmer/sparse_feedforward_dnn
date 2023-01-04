@@ -1,7 +1,7 @@
 #pragma once
 
-#include "autoencoder/batch_preparer.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/batch_preparer.h"
+#include "batch_preparation/compressed_batch.h"
 #include "sparse/sparse_model.h"
 
 #include <iostream>

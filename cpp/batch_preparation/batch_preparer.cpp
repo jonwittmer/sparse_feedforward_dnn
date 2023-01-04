@@ -1,4 +1,4 @@
-#include "autoencoder/batch_preparer.h"
+#include "batch_preparation/batch_preparer.h"
 
 #include <vector>
 #include <Eigen/Core>
@@ -42,38 +42,41 @@ namespace sparse_nn {
 
 
 
-  TimeBatchPreparer::TimeBatchPreparer(int nDofsPerElement, int nTimestepsPerBatch) :
-    nDofsPerElement_(nDofsPerElement), nTimestepsPerBatch_(nTimestepsPerBatch) {}
+  TimeBatchPreparer::TimeBatchPreparer(int nDofsPerElement, int nTimestepsPerBatch, int nStates, int nRkStages) :
+    nDofsPerElement_(nDofsPerElement), nTimestepsPerBatch_(nTimestepsPerBatch),
+    nStates_(nStates), nRkStages_(nRkStages) {}
   
 	void TimeBatchPreparer::copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) {
     assert((nTimestepsPerBatch_ == dataBuffer.size(), "dataBuffer does not match nTimestepsPerBatch"));
 
     int nLocalElements = dataBuffer.at(0).at(0).size() / nDofsPerElement_;
-    int nStates = dataBuffer.at(0).size();
     assert((nLocalElements * nDofsPerElement_ == dataBuffer.at(0).at(0).size(), 
             "dataBuffer.at(0).at(0).size() must be a multiple of nDofsPerElement"));
 
     // Each element is treated as it's own state, so the total number of states == nStates * nLocalElements 
-    int totalStatesToStore = nLocalElements * nStates;
-		mat.resize(totalStatesToStore, nDofsPerElement_ * nTimestepsPerBatch_);
+    int totalStatesToStore = nLocalElements * nStates_;
+		mat.resize(totalStatesToStore, nDofsPerElement_ * nTimestepsPerBatch_ * nRkStages_);
 
-		assert((mat.cols() == nDofsPerElement_ * nTimestepsPerBatch_, "dataBuffer timestep size does not match matrix"));
+		assert((mat.cols() == nDofsPerElement_ * nTimestepsPerBatch_ * nRkStages_, "dataBuffer timestep size does not match matrix"));
 		assert((mat.rows() == nLocalElements * dataBuffer.at(0).size(), "allocated matrix does not have enough rows for all timesteps and states"));
     
     int t = 0;
     for (const auto& timestep : dataBuffer) {
-      int colStart = nDofsPerElement_ * t;
-      for (int state = 0; state < nStates; ++state) {
+      for (int state = 0; state < nStates_; ++state) {
+        int colStart = nDofsPerElement_ * t * nRkStages_;
         int stateOffset = state * nLocalElements;
-        for (int element = 0; element < nLocalElements; ++element){
-          int row = stateOffset + element;
-          int elementOffset = element * nDofsPerElement_;
-          for (int i = 0; i < nDofsPerElement_; ++i) {
-            if (row >= mat.rows() || colStart >= mat.cols() || row < 0 || colStart < 0) {
-              std::cout << "attempting to write (" << row  << ", " << colStart << ") from array of size (" << mat.rows() << ", " << mat.cols() << ")" << std::endl;
+        for (int rk = 0; rk < nRkStages_; ++rk) {
+          for (int element = 0; element < nLocalElements; ++element) {
+            int row = stateOffset + element;
+            int elementOffset = element * nDofsPerElement_;
+            for (int i = 0; i < nDofsPerElement_; ++i) {
+              if (row >= mat.rows() || colStart >= mat.cols() || row < 0 || colStart < 0) {
+                std::cout << "attempting to write (" << row  << ", " << colStart << ") from array of size (" << mat.rows() << ", " << mat.cols() << ")" << std::endl;
+              }
+              mat(row, colStart + i) = timestep.at(state + nStates_ * rk).at(elementOffset + i);
             }
-            mat(row, colStart + i) = timestep.at(state).at(elementOffset + i);
           }
+          colStart += nDofsPerElement_;
         }
       }
       ++t;
@@ -82,21 +85,23 @@ namespace sparse_nn {
 	
 	void TimeBatchPreparer::copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) {
     int nLocalElements = dataBuffer.at(0).at(0).size() / nDofsPerElement_;
-    int nStates = dataBuffer.at(0).size();
     int t = 0;
     for (auto& timestep : dataBuffer) {
-      int colStart = nDofsPerElement_ * t;
-      for (int state = 0; state < nStates; ++state) {
+      for (int state = 0; state < nStates_; ++state) {
+        int colStart = nDofsPerElement_ * t * nRkStages_;
         int stateOffset = state * nLocalElements;
-        for (int element = 0; element < nLocalElements; ++element){
-          int row = stateOffset + element;
-          if (row >= mat.rows() || colStart >= mat.cols() || row < 0 || colStart < 0) {
-            std::cout << "attempting to read (" << row  << ", " << colStart << ") from array of size (" << mat.rows() << ", " << mat.cols() << ")" << std::endl;
+        for (int rk = 0; rk < nRkStages_; ++rk) {
+          for (int element = 0; element < nLocalElements; ++element) {
+            int row = stateOffset + element;
+            if (row >= mat.rows() || colStart >= mat.cols() || row < 0 || colStart < 0) {
+              std::cout << "attempting to read (" << row  << ", " << colStart << ") from array of size (" << mat.rows() << ", " << mat.cols() << ")" << std::endl;
+            }
+            int elementOffset = element * nDofsPerElement_;
+            for (int i = 0; i < nDofsPerElement_; ++i) {
+              timestep.at(state + nStates_ * rk).at(elementOffset + i) = mat(row, colStart + i);
+            }
           }
-          int elementOffset = element * nDofsPerElement_;
-          for (int i = 0; i < nDofsPerElement_; ++i) {
-            timestep.at(state).at(elementOffset + i) = mat(row, colStart + i);
-          }
+          colStart += nDofsPerElement_;
         }
       }
       ++t;

@@ -71,9 +71,18 @@ std::unique_ptr<sparse_nn::CompressionBase> create_autoencoder(ae_parameters_t *
                                                                       aeParams->batchSize,
                                                                       aeParams->mpirank, shouldWriteDataToFile, 
                                                                       aeParams->writeProbability, aeParams->debugMode);
+    } else if (compressionStrategy == std::string("time_rk")) {
+      if (aeParams->mpirank == 0) {
+        std::cout << "creating TimeRkAutoencoderDebug" << std::endl;
+      }
+      autoencoder = std::make_unique<sparse_nn::TimeRkAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+                                                                        aeParams->nDofsPerElement, aeParams->nStates, 
+                                                                        aeParams->batchSize,
+                                                                        aeParams->mpirank, shouldWriteDataToFile, 
+                                                                        aeParams->writeProbability, aeParams->debugMode);
     } else {
       std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in debug mode.";
-      std::cout << "Choose between 'space', 'time', or 'default' which is 'space'." << std::endl;
+      std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
     }
   } else {
     if (compressionStrategy == "space" || compressionStrategy == "default") {
@@ -85,9 +94,14 @@ std::unique_ptr<sparse_nn::CompressionBase> create_autoencoder(ae_parameters_t *
                                                                  aeParams->nDofsPerElement, aeParams->nStates, 
                                                                  aeParams->batchSize,
                                                                  aeParams->mpirank, aeParams->debugMode);
+    } else if (compressionStrategy == std::string("time_rk")) {
+      autoencoder = std::make_unique<sparse_nn::TimeRkAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+                                                                   aeParams->nDofsPerElement, aeParams->nStates, 
+                                                                   aeParams->batchSize,
+                                                                   aeParams->mpirank, aeParams->debugMode);
     } else {
       std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in pruduction mode.";
-      std::cout << "Choose between 'space', 'time', or 'default' which is 'space'." << std::endl;
+      std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
     }
   }
 	return std::move(autoencoder);
@@ -252,21 +266,21 @@ void spawn_autoencoder_thread(ae_parameters_t *aeParams) {
 
 void clear_affinity_mask() {
 	int nHardwareThreads = std::thread::hardware_concurrency();
-	int nMpiTasksPerNode = 32;
+	int nMpiTasksPerNode = 56;
 	int localThreadNumber = mpirank % nMpiTasksPerNode; // this ensures NUMA consistency (assuming alternating socket CPU numbering)
 	std::cout << nHardwareThreads << " hardware threads available" << std::endl;
 	pthread_t thread = pthread_self();
 	cpu_set_t cpuset;
 	CPU_ZERO(&cpuset);
-	CPU_SET(nMpiTasksPerNode + (localThreadNumber % (nHardwareThreads - nMpiTasksPerNode)), &cpuset);
+	//CPU_SET(nMpiTasksPerNode + (localThreadNumber % (nHardwareThreads - nMpiTasksPerNode)), &cpuset);
 	// for timing testing, pin to same core as main thread.
-	// CPU_SET(localThreadNumber, &cpuset);
+	CPU_SET(localThreadNumber, &cpuset);
 	pthread_setaffinity_np(thread, sizeof(cpuset), &cpuset);
 }
 
 void *run_autoencoder_manager(void *args) {
-	// allow thread to run on any processor
-	// clear_affinity_mask();
+	// force thread to run on same core as process to keep NUMA access problems to a minimum
+	//clear_affinity_mask();
 
 	// pthreads requires single void * argument 
 	ae_parameters_t *aeParams = static_cast<ae_parameters_t *>(args);
@@ -441,6 +455,11 @@ void compress_from_array(double **localStateLocations, int timestep, int isLast)
 		pthread_mutex_unlock(&sharedDataMutex);
 		pthread_cond_signal(&compressionCond);
 		pthread_mutex_unlock(&compressionMutex);
+    // aids in making sure compression thread actually runs 
+    // in compression mode before a decompress call is made
+    if (sharedIsLast) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
 	} else {
 		pthread_mutex_unlock(&sharedDataMutex);
 	}

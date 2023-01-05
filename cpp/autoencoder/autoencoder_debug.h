@@ -17,9 +17,12 @@ namespace sparse_nn {
 		AutoencoderDebug(const std::string encoderPath, const std::string decoderPath, int dataSize,
                      int nStates, int mpirank, bool shouldWrite, double writeProbability, bool debug);
 		
-		virtual void compressStates(const std::vector<Timestep> &dataBuffer, int startingTimestep, int currBatchSize) override;
+		virtual void compressStates(const std::vector<Timestep> &dataBuffer, int startingTimestep, int currBatchSize) override {};
 		virtual std::pair<int, int> prefetchDecompressedStates(std::vector<Timestep> &dataBuffer,
-													   const int latestTimestep) override;
+                                                           const int latestTimestep) override {};
+    virtual void compressStates(const double *dataBuffer, int startingTimestep, int currBatchSize, int nLocalElements) override;
+		virtual std::pair<int, int> prefetchDecompressedStates(double *dataBuffer,
+                                                           const int latestTimestep, int nLocalElements) override;
 		
 	protected:
 		void writeDataToFile() const;

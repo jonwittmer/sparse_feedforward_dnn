@@ -36,14 +36,19 @@ namespace sparse_nn {
 		batchDataMatrix_.resize(1, dataSize_);
 	}
 
-	void Autoencoder::compressStates(const std::vector<Timestep> &dataBuffer,
-																	 int startingTimestep, int currBatchSize) {		
+	void Autoencoder::compressStates(const double *dataBuffer,
+																	 int startingTimestep, int currBatchSize, int nLocalElements) {
     // first batch sets the batch size
     if (batchSize_ == 0) {
       batchSize_ = currBatchSize;
     }
     
-		TIME_CODE(batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer);, "[COMPRESS] copy to matrix");
+    // DEBUGGING
+    if (mpirank_ == 0) {
+      std::cout << "[COMPRESS] dataBuffer[0] = " << dataBuffer[0] << std::endl;
+    }
+
+		TIME_CODE(batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer, nLocalElements);, "[COMPRESS] copy to matrix");
     
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
 		
@@ -64,12 +69,12 @@ namespace sparse_nn {
 		// do compression
 		TIME_CODE(
       batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());, "[COMPRESS] compression");
-		
+
     verbosePrinting(batchStorage);
 	}
 	
-	std::pair<int, int> Autoencoder::prefetchDecompressedStates(std::vector<Timestep>& dataBuffer,
-																															const int latestTimestep) {
+	std::pair<int, int> Autoencoder::prefetchDecompressedStates(double *dataBuffer,
+																															const int latestTimestep, int nLocalElements) {
 		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
 		// decompress batch
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
@@ -92,8 +97,10 @@ namespace sparse_nn {
       }
     }
 
-		TIME_CODE(batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer);, "[DECOMPRESS] copy to vector");
-
+		TIME_CODE(batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer, nLocalElements);, "[DECOMPRESS] copy to vector");
+    if (mpirank_ == 0) {
+      std::cout << "[DECOMPRESS] dataBuffer[0] = " << dataBuffer[0] << std::endl;
+    }
 		return {batchStorage.getStartingTimestep(), batchStorage.getEndingTimestep()};
 	}
 

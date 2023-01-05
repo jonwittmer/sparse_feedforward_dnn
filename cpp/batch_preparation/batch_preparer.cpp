@@ -107,4 +107,63 @@ namespace sparse_nn {
       ++t;
     }
   }
+
+
+
+  void TimeBatchPreparer::createMapping(int nLocalElements) {
+    if (mapCompressionToPde_ == nullptr){
+      mapCompressionToPde_ = (int *)malloc(nLocalElements * nTimestepsPerBatch_ * nStates_ * nRkStages_ * sizeof(int));
+    } else {
+      std::cout << "mapCompressionToPde_ is not nullptr. Only call this function once" << std::endl;
+    }
+    
+    int nRows = nStates_ * nLocalElements;
+    for (int r = 0; r < nRows; ++r) {
+      int state = r / nLocalElements;
+      int element = r % nLocalElements;
+      for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
+        int timestep = i / nRkStages_;
+        int rk = i % nRkStages_;
+        
+        int timestep_offset = timestep * nRkStages_ * nStates_ * nLocalElements * nDofsPerElement_;
+        int rk_offset = rk * nStates_ * nLocalElements * nDofsPerElement_;
+        int state_offset = state * nLocalElements * nDofsPerElement_;
+        int element_offset = element * nDofsPerElement_;
+        mapCompressionToPde_[r * nTimestepsPerBatch_ * nRkStages_ + i] = timestep_offset + rk_offset + state_offset + element_offset;
+      }
+    }
+  }
+
+
+
+  void TimeBatchPreparer::copyVectorToMatrix(Eigen::MatrixXd& mat, const double *dataBuffer, int nLocalElements) {
+    if (mapCompressionToPde_ == nullptr) {
+      createMapping(nLocalElements);
+    }
+
+    mat.resize(nStates_ * nLocalElements, nTimestepsPerBatch_ * nRkStages_ * nDofsPerElement_);
+    for (int row = 0; row < mat.rows(); ++row) {
+      for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
+        int storageOffset = mapCompressionToPde_[row * nTimestepsPerBatch_ * nRkStages_ + i];
+        int colOffset = nDofsPerElement_ * i;
+        for (int j = 0; j < nDofsPerElement_; ++j) {
+          mat(row, colOffset + j) = dataBuffer[storageOffset + j];
+        }
+      }
+    }
+
+
+	}
+	
+	void TimeBatchPreparer::copyMatrixToVector(const Eigen::MatrixXd& mat, double *dataBuffer, int nLocalElements) {
+    for (int row = 0; row < mat.rows(); ++row) {
+      for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
+        int storageOffset = mapCompressionToPde_[row * nTimestepsPerBatch_ * nRkStages_ + i];
+        int colOffset = nDofsPerElement_ * i;
+        for (int j = 0; j < nDofsPerElement_; ++j) {
+          dataBuffer[storageOffset + j] = mat(row, colOffset + j);
+        }
+      }
+    }
+  }
 } // namespace sparse_nn

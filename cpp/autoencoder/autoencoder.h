@@ -17,9 +17,9 @@ namespace sparse_nn {
 		Autoencoder(const std::string encoderPath, const std::string decoderPath, int dataSize,  
                 int nStates, int mpirank, bool debug);
 		
-		virtual void compressStates(const std::vector<Timestep> &dataBuffer, int startingTimestep, int currBatchSize) override;
-		virtual std::pair<int, int> prefetchDecompressedStates(std::vector<Timestep> &dataBuffer,
-													   const int latestTimestep) override;
+		void compressStates(const double* dataBuffer, int startingTimestep, int currBatchSize, int nLocalElements);
+		std::pair<int, int> prefetchDecompressedStates(double *dataBuffer,
+                                                   const int latestTimestep, int nLocalElements);
 		
 	protected:
     void verbosePrinting(const CompressedBatch<Eigen::MatrixXf> &batchStorage);

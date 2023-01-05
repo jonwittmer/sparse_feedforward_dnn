@@ -26,41 +26,42 @@ void timeBatchPreparation() {
   int nRkStages = 4;
   int nElements = 300;
   int dataSize = nElements * nDofsPerElement;
-  std::vector<std::vector<sparse_nn::Timestep>> buffers;
-  
-  
-  for (int i = 0; i < 40; ++i) {
-  buffers.emplace_back(nTimesteps, 
-      sparse_nn::Timestep(nStates * nRkStages, 
-          sparse_nn::FullState(dataSize, 0)));
-  }
+  double *buffers[40];
+  int bufferSize = nTimesteps * nStates * nDofsPerElement * nRkStages * nElements;
 
   // fill buffer with random doubles
-  for (auto& buffer: buffers) {
-  for (auto& timestep : buffer) {
-    for (auto& state : timestep) {
-      for (auto& val : state) {
-        val = (double)rand() / (double)rand();
-      }
-    }
+  for (int i = 0; i < 2; ++i) {
+    buffers[i] = (double *)malloc(bufferSize * sizeof(double)); 
   }
+  for (int j = 0; j < bufferSize; ++j) {
+    buffers[0][j] = (double)rand() / (double)rand();
   }
+
   auto prep = sparse_nn::TimeBatchPreparer(nDofsPerElement, nTimesteps, nStates, nRkStages);
   Eigen::MatrixXd mat;
 
-  for (int i = 0; i < 40; ++i) {
-    sparse_nn::Timer copyToMatrixTimer("Copy to matrix");
-    copyToMatrixTimer.start();
-    prep.copyVectorToMatrix(mat, buffers[i]);
-    copyToMatrixTimer.stop();
-    copyToMatrixTimer.print();
+  sparse_nn::Timer copyToMatrixTimer("Copy to matrix");
+  copyToMatrixTimer.start();
+  prep.copyVectorToMatrix(mat, buffers[0], nElements);
+  copyToMatrixTimer.stop();
+  copyToMatrixTimer.print();
     
-    sparse_nn::Timer copyToVectorTimer("Copy to vector");
-    copyToVectorTimer.start();
-    prep.copyMatrixToVector(mat, buffers[39-i]);
-    copyToVectorTimer.stop();
-    copyToVectorTimer.print();
-    std::cout << std::endl;
+  sparse_nn::Timer copyToVectorTimer("Copy to vector");
+  copyToVectorTimer.start();
+  prep.copyMatrixToVector(mat, buffers[1], nElements);
+  copyToVectorTimer.stop();
+  copyToVectorTimer.print();
+  std::cout << std::endl;
+
+  for (int j = 0; j < bufferSize; ++j) {
+    if (buffers[0][j] != buffers[1][j]) {
+      std::cout << buffers[0][j] << " != " << buffers[1][j] << std::endl;
+      break;
+    }
+  }
+  
+  for (int i = 0; i < 2; ++i) {
+    free(buffers[i]);
   }
 }
 

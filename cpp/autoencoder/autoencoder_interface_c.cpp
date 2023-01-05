@@ -30,10 +30,11 @@ int batchSize;
 int batchIndex;
 int currTimestep;
 int compressionTimestep;
+int decompressionTimestep;
 int maxTimestep = 0;
-std::vector<sparse_nn::Timestep> *currSharedDataBuffer;
-std::vector<sparse_nn::Timestep> *altDataBuffer;
-std::vector<sparse_nn::Timestep> *pingpongBufferPointers[2];
+double *currSharedDataBuffer;
+double *altSharedDataBuffer;
+double *pingpongBufferPointers[2];
 int currBufferIndex;
 int altBufferIndex;
 int currBufferMinTimestep = -1;
@@ -116,20 +117,16 @@ void print_data(double **dataLocations) {
 void copy_to_shared_buffer(double **dataLocations, int dataSize) {
 	sparse_nn::Timer copyTimer("[INTERFACE] copy from mangll");
 	copyTimer.start();
-  // something has gone wrong with the indexing if this happens
-  if (altDataBuffer->size() < batchIndex) {
-    std::cout << "batch index too large - altDataBuffer is not big enough" << std::endl;
+
+  // Something has gone wrong if this happens
+  if (batchSize <= batchIndex) {
+    std::cout << "ERROR: not enough space allocated for batches in autoencoder_interface" << std::endl;
     assert(false);
   }
-
-  // expand altDataBuffer by one if needed
-  if (altDataBuffer->size() == batchIndex) {
-    sparse_nn::FullState emptyVector(dataSize, 0);
-		altDataBuffer->emplace_back(nStates, emptyVector);
-  }
   
+  int timestepStart = batchIndex * nStates * dataSize;
   for (int i = 0; i < nStates; i++) {
-    std::copy(dataLocations[i], dataLocations[i] + dataSize, &(altDataBuffer->at(batchIndex).at(i).at(0)));
+    std::copy(dataLocations[i], dataLocations[i] + dataSize, &(altSharedDataBuffer[timestepStart + dataSize * i]));
   }
   copyTimer.stop();
 	
@@ -141,10 +138,12 @@ void copy_to_shared_buffer(double **dataLocations, int dataSize) {
 void copy_from_shared_buffer(double **dataLocations) {
 	sparse_nn::Timer copyTimer("[INTERFACE] copy to mangll");
 	copyTimer.start();
-	if ((*currSharedDataBuffer).size() > batchIndex) {
+	if (batchSize > batchIndex) {
+    int timestepStart = batchIndex * nStates * globalDataSize;
+    
 		for (int i = 0; i < nStates; i++) {
-			std::copy(currSharedDataBuffer->at(batchIndex).at(i).begin(),
-                currSharedDataBuffer->at(batchIndex).at(i).end(),
+			std::copy(&(currSharedDataBuffer[timestepStart + i * globalDataSize]),
+                &(currSharedDataBuffer[timestepStart + (i+1) * globalDataSize]),
                 dataLocations[i]);
 		}
 	} else {
@@ -160,14 +159,12 @@ void initialize_storage(int nStates, int dataSize) {
 	// create empty vector of the right size
 	//auto tempVector = Timestep(timestepSize, 0);
 	for (int i = 0; i < 2; i++) {
-		pingpongBufferPointers[i] = new std::vector<sparse_nn::Timestep>(batchSize, 
-                                     sparse_nn::Timestep(nStates, 
-                                       sparse_nn::FullState(dataSize, 0)));
+		pingpongBufferPointers[i] = (double *)malloc(batchSize * nStates * dataSize * sizeof(double));
 	}
 	currBufferIndex = 0;
 	altBufferIndex = 1;
 	currSharedDataBuffer = pingpongBufferPointers[currBufferIndex];
-	altDataBuffer = pingpongBufferPointers[altBufferIndex];
+	altSharedDataBuffer = pingpongBufferPointers[altBufferIndex];
 }
 
 bool testAutoencoderDebug(const ae_parameters_t *aeParams) {
@@ -195,9 +192,9 @@ bool testAutoencoderDebug(const ae_parameters_t *aeParams) {
     compress_from_array(&(inputArray[t * aeParams->nStates]), t, 0);
   }
   // hack to make sure timestep is read before it is changed
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-  // reset min/max timesteps to force reloading of data
+  // reset min/max timesteps to force loading data from autoencoder
   currBufferMinTimestep = -1;
   currBufferMaxTimestep = -1;
   altBufferMinTimestep = -1;
@@ -309,8 +306,8 @@ void *run_autoencoder_manager(void *args) {
 		// exit if commanded
 		if (exitFlag) {
 			// free the shared locs memory
-			delete(pingpongBufferPointers[0]);
-			delete(pingpongBufferPointers[1]);
+			free(pingpongBufferPointers[0]);
+			free(pingpongBufferPointers[1]);
 			
 			// release lock so mangll can continue to solve pde
       bufferReadyToCompress = false;
@@ -328,7 +325,7 @@ void *run_autoencoder_manager(void *args) {
 			altBufferIndex = currBufferIndex;
 			currBufferIndex = (currBufferIndex + 1) % 2;
 			currSharedDataBuffer = pingpongBufferPointers[currBufferIndex];
-			altDataBuffer = pingpongBufferPointers[altBufferIndex];
+			altSharedDataBuffer = pingpongBufferPointers[altBufferIndex];
 
 			// make copy of timestep since main thread modifies this
 			
@@ -343,7 +340,7 @@ void *run_autoencoder_manager(void *args) {
 			
 			// go ahead with compressing
 			// if (sharedIsLast) { maxTimestep = currTimestep; }
-      if (currTimestep > maxTimestep) { maxTimestep = currTimestep; }
+      if (compressionTimestep > maxTimestep) { maxTimestep = compressionTimestep; }
 			int currBatchSize = sharedIsLast ? batchIndex : batchSize;
 			// this handles the case where the batch is full (batchIndex set to 0)
 			currBatchSize = currBatchSize == 0 ? batchSize : currBatchSize;
@@ -352,7 +349,7 @@ void *run_autoencoder_manager(void *args) {
 				std::cout << "startingTimestep: " << startingTimestep;
 				std::cout << " currBatchSize: " <<  currBatchSize << std::endl;
 			}
-			autoencoder->compressStates(*currSharedDataBuffer, startingTimestep, currBatchSize);
+			autoencoder->compressStates(currSharedDataBuffer, startingTimestep, currBatchSize, globalDataSize / 64);
 			
 			compressTimer.stop();
 			if (mpirank == DEBUG_RANK) {
@@ -363,9 +360,9 @@ void *run_autoencoder_manager(void *args) {
 			decompTimer.start();
 			
 			// check if compressionTimestep has been prefetched
-			if (compressionTimestep < altBufferMinTimestep || compressionTimestep > altBufferMaxTimestep) {
-				auto fetchedTimesteps = autoencoder->prefetchDecompressedStates(*(pingpongBufferPointers[altBufferIndex]),
-                                                                        compressionTimestep);
+			if (decompressionTimestep < altBufferMinTimestep || decompressionTimestep > altBufferMaxTimestep) {
+				auto fetchedTimesteps = autoencoder->prefetchDecompressedStates((pingpongBufferPointers[altBufferIndex]),
+                                                                        decompressionTimestep, globalDataSize / 64);
 				altBufferMinTimestep = fetchedTimesteps.first;
 				altBufferMaxTimestep = fetchedTimesteps.second;
 			}
@@ -374,7 +371,7 @@ void *run_autoencoder_manager(void *args) {
 			altBufferIndex = currBufferIndex;
 			currBufferIndex = (currBufferIndex + 1) % 2;
 			currSharedDataBuffer = pingpongBufferPointers[currBufferIndex];
-			altDataBuffer = pingpongBufferPointers[altBufferIndex];
+			altSharedDataBuffer = pingpongBufferPointers[altBufferIndex];
 			currBufferMinTimestep = altBufferMinTimestep;
 			currBufferMaxTimestep = altBufferMaxTimestep;
 
@@ -393,8 +390,8 @@ void *run_autoencoder_manager(void *args) {
 			}
       
 			if (nextBatchTimestep >= 0 && nextBatchTimestep <= maxTimestep) {
-				auto fetchedTimesteps = autoencoder->prefetchDecompressedStates(*(pingpongBufferPointers[altBufferIndex]),
-                                                                        nextBatchTimestep);
+				auto fetchedTimesteps = autoencoder->prefetchDecompressedStates((pingpongBufferPointers[altBufferIndex]),
+                                                                        nextBatchTimestep, globalDataSize / 64);
 				altBufferMinTimestep = fetchedTimesteps.first;
 				altBufferMaxTimestep = fetchedTimesteps.second;
 			}
@@ -498,7 +495,7 @@ void decompress_to_array(double **localStateLocations, int requestedTimestep, in
 		
 		bufferReadyToCompress = true;
 	
-    compressionTimestep = requestedTimestep;
+    decompressionTimestep = requestedTimestep;
 	
 		// we need to release sharedDataMutex so that compression can switch buffers
 		// signals compression thread to prefetch the next batch

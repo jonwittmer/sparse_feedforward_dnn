@@ -9,8 +9,8 @@
 #include <thread>
 #include <vector>
 
-#define DEBUG_RANK -1
-#define VERBOSE_DEBUG -1
+#define DEBUG_RANK 0
+#define VERBOSE_DEBUG 0
 
 /* pthreads variables for spinning off compression. */
 pthread_t compressionThread;
@@ -130,7 +130,7 @@ void copy_to_shared_buffer(double **dataLocations, int dataSize) {
   }
   copyTimer.stop();
 	
-	if (mpirank == VERBOSE_DEBUG) {
+	if (mpirank == VERBOSE_DEBUG - 1) {
 		copyTimer.print();
 	}
 }
@@ -277,7 +277,7 @@ void clear_affinity_mask() {
 
 void *run_autoencoder_manager(void *args) {
 	// force thread to run on same core as process to keep NUMA access problems to a minimum
-	//clear_affinity_mask();
+	clear_affinity_mask();
 
 	// pthreads requires single void * argument 
 	ae_parameters_t *aeParams = static_cast<ae_parameters_t *>(args);
@@ -318,6 +318,7 @@ void *run_autoencoder_manager(void *args) {
 		}
 
 		if (!decompressFlag) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 			sparse_nn::Timer compressTimer("[INTERFACE] compress");
 			compressTimer.start();
 
@@ -335,8 +336,7 @@ void *run_autoencoder_manager(void *args) {
 			
 			// reset condition variable to enable mangll to continue solving
 			bufferIsFull = false;
-			pthread_cond_signal(&sharedDataCond);
-			pthread_mutex_unlock(&sharedDataMutex);
+			
 			
 			// go ahead with compressing
 			// if (sharedIsLast) { maxTimestep = currTimestep; }
@@ -347,10 +347,20 @@ void *run_autoencoder_manager(void *args) {
 			int startingTimestep = compressionTimestep - currBatchSize + 1;
 			if (mpirank == DEBUG_RANK) {
 				std::cout << "startingTimestep: " << startingTimestep;
-				std::cout << " currBatchSize: " <<  currBatchSize << std::endl;
+				std::cout << " currBatchSize: " <<  currBatchSize;
+        std::cout << " nLocalElements: " << globalDataSize / 64 << std::endl;
 			}
-			autoencoder->compressStates(currSharedDataBuffer, startingTimestep, currBatchSize, globalDataSize / 64);
-			
+      double *someData = (double *)malloc(nStates * globalDataSize * batchSize * sizeof(double));
+      for (int i = 0; i < nStates * globalDataSize * batchSize; ++i) {
+        // pseudorandom doubles
+        someData[i] = static_cast<double>(rand()) / static_cast<double>(rand() + 1);
+      }
+			//autoencoder->compressStates(currSharedDataBuffer, startingTimestep, currBatchSize, globalDataSize / 64);
+      autoencoder->compressStates(someData, startingTimestep, currBatchSize, globalDataSize / 64);
+      
+      pthread_cond_signal(&sharedDataCond);
+			pthread_mutex_unlock(&sharedDataMutex);
+
 			compressTimer.stop();
 			if (mpirank == DEBUG_RANK) {
 				compressTimer.print();
@@ -389,13 +399,13 @@ void *run_autoencoder_manager(void *args) {
 				nextBatchTimestep = currBufferMaxTimestep + 1;
 			}
       
-			if (nextBatchTimestep >= 0 && nextBatchTimestep <= maxTimestep) {
-				auto fetchedTimesteps = autoencoder->prefetchDecompressedStates((pingpongBufferPointers[altBufferIndex]),
-                                                                        nextBatchTimestep, globalDataSize / 64);
-				altBufferMinTimestep = fetchedTimesteps.first;
-				altBufferMaxTimestep = fetchedTimesteps.second;
-			}
-			
+			//if (nextBatchTimestep >= 0 && nextBatchTimestep <= maxTimestep) {
+			//	auto fetchedTimesteps = autoencoder->prefetchDecompressedStates((pingpongBufferPointers[altBufferIndex]),
+      //                                                                  nextBatchTimestep, globalDataSize / 64);
+			//	altBufferMinTimestep = fetchedTimesteps.first;
+			//	altBufferMaxTimestep = fetchedTimesteps.second;
+			//}
+
 			decompTimer.stop();
 			if (mpirank == DEBUG_RANK) {
 				decompTimer.print();
@@ -417,9 +427,9 @@ void compress_from_array(double **localStateLocations, int timestep, int isLast)
 	sharedIsLast = static_cast<bool>(isLast);
 	
 	pthread_mutex_lock(&sharedDataMutex);
-	while (bufferIsFull) {
-		pthread_cond_wait(&sharedDataCond, &sharedDataMutex);
-	}
+  while (bufferIsFull) {
+    pthread_cond_wait(&sharedDataCond, &sharedDataMutex);
+  }
 
 	// reset batch index
 	if (timestep == 0) { batchIndex = 0; }
@@ -430,16 +440,10 @@ void compress_from_array(double **localStateLocations, int timestep, int isLast)
 	if (batchIndex == 0 || sharedIsLast) {
 		bufferIsFull = true;
 
-		sparse_nn::Timer waitingTimer("[INTERFACE] pde waiting for compression");
-		waitingTimer.start();
 
 		pthread_mutex_lock(&compressionMutex);
 		while (bufferReadyToCompress) {
 			pthread_cond_wait(&compressionCond, &compressionMutex);
-		}
-		waitingTimer.stop();
-		if (mpirank == DEBUG_RANK) {
-			waitingTimer.print();
 		}
 		
 		bufferReadyToCompress = true;		
@@ -452,14 +456,28 @@ void compress_from_array(double **localStateLocations, int timestep, int isLast)
 		pthread_mutex_unlock(&sharedDataMutex);
 		pthread_cond_signal(&compressionCond);
 		pthread_mutex_unlock(&compressionMutex);
+    
+    sparse_nn::Timer waitingTimer("[INTERFACE] pde waiting for compression");
+		waitingTimer.start();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    pthread_mutex_lock(&sharedDataMutex);
+    while (bufferIsFull) {
+      pthread_cond_wait(&sharedDataCond, &sharedDataMutex);
+    }
+    waitingTimer.stop();
+		if (mpirank == DEBUG_RANK) {
+			waitingTimer.print();
+		}
     // aids in making sure compression thread actually runs 
     // in compression mode before a decompress call is made
     if (sharedIsLast) {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-	} else {
-		pthread_mutex_unlock(&sharedDataMutex);
-	}
+	} 
+  pthread_mutex_unlock(&sharedDataMutex);
+  //else {
+	//	
+	//}
 }
 
 void decompress_to_array(double **localStateLocations, int requestedTimestep, int isForwardMode) {

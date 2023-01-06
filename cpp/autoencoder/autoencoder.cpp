@@ -42,11 +42,6 @@ namespace sparse_nn {
     if (batchSize_ == 0) {
       batchSize_ = currBatchSize;
     }
-    
-    // DEBUGGING
-    if (mpirank_ == 0) {
-      std::cout << "[COMPRESS] dataBuffer[0] = " << dataBuffer[0] << std::endl;
-    }
 
 		TIME_CODE(batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer, nLocalElements);, "[COMPRESS] copy to matrix");
     
@@ -65,12 +60,18 @@ namespace sparse_nn {
       batchStorage.ranges = divideAndReturnRanges(batchDataMatrix_);,
              "[COMPRESS] normalization"
     );
-
+    if (mpirank_ == 0) {
+      std::cout << "[DEBUG] " << batchDataMatrix_.rows() << std::endl;
+    }
+    Eigen::MatrixXf temp;
+    TIME_CODE(
+      temp = batchDataMatrix_.cast<float>();, "[COMPRESS] cast to float"
+    );
 		// do compression
 		TIME_CODE(
-      batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());, "[COMPRESS] compression");
+      batchStorage.data = encoder_.run(temp);, "[COMPRESS] compression");
 
-    verbosePrinting(batchStorage);
+    //verbosePrinting(batchStorage);
 	}
 	
 	std::pair<int, int> Autoencoder::prefetchDecompressedStates(double *dataBuffer,

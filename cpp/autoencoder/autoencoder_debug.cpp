@@ -26,7 +26,7 @@ namespace sparse_nn {
 		}
     
     batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer, nLocalElements);
-
+    shouldWrite_ = false;
 		if (shouldWrite_) {
 			writeDataToFile();
 		}

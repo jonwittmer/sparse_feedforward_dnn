@@ -24,7 +24,7 @@ void timeBatchPreparation() {
   int nStates = 9;
   int nDofsPerElement = 64;
   int nRkStages = 4;
-  int nElements = 300;
+  int nElements = 98;
   int dataSize = nElements * nDofsPerElement;
   double *buffers[40];
   int bufferSize = nTimesteps * nStates * nDofsPerElement * nRkStages * nElements;
@@ -65,6 +65,36 @@ void timeBatchPreparation() {
   }
 }
 
+void timeEncoder() {
+  // parameters that determine the size of the data
+  int nTimesteps = 16;
+  int nStates = 9;
+  int nDofsPerElement = 64;
+  int nRkStages = 4;
+  int nElements = 98;
+  int latentDime = 64;
+  sparse_nn::SparseModel encoder;
+  sparse_nn::SparseModel decoder;
+  
+  encoder = sparse_nn::SparseModel("/work/06537/jwittmer/ls6/trained_models/time_rk/train_114/sparse_encoder/config.json");
+  Eigen::MatrixXf randomData = Eigen::MatrixXf::Random(nElements * nStates, nTimesteps * nRkStages * nDofsPerElement);
+  std::cout << "Encoder random data: (" << randomData.rows() << ", " << randomData.cols() << ")" << std::endl;
+
+  for (int i = 0; i < 10; ++i) {
+  sparse_nn::Timer encTimer("Encoder timer");
+  encTimer.start();
+  Eigen::MatrixXf output = encoder.run(randomData);
+  encTimer.stop();
+  encTimer.print();
+
+  decoder = sparse_nn::SparseModel("/work/06537/jwittmer/ls6/trained_models/time_rk/train_114/sparse_decoder/config.json");
+  sparse_nn::Timer decTimer("Decoder timer");
+  decTimer.start();
+  Eigen::MatrixXf outputDec = decoder.run(output);
+  decTimer.stop();
+  decTimer.print();
+  }
+}
 
 int main() {
 	// default constructor
@@ -86,6 +116,9 @@ int main() {
 
   std::cout << std::endl;
   timeBatchPreparation();
-	
+
+  std::cout << std::endl;
+  timeEncoder();
+
 	return 0;
 }

@@ -7,6 +7,7 @@
 #include <iostream>
 #include <Eigen/Core>
 #include <omp.h>
+#include <mpi.h>
 #include <stdlib.h>
 
 void loadModel() {
@@ -66,65 +67,74 @@ void timeBatchPreparation() {
   }
 }
 
-void timeEncoder() {
+void timeEncoder(bool printResults) {
   // parameters that determine the size of the data
   int nTimesteps = 16;
   int nStates = 9;
   int nDofsPerElement = 64;
   int nRkStages = 4;
   int nElements = 98;
-  int latentDime = 64;
   sparse_nn::SparseModel encoder;
   sparse_nn::SparseModel decoder;
   
   encoder = sparse_nn::SparseModel("/work/06537/jwittmer/ls6/trained_models/time_rk/train_114/sparse_encoder/config.json");
-  Eigen::MatrixXf randomData = Eigen::MatrixXf::Random(nElements * nStates, nTimesteps * nRkStages * nDofsPerElement);
-  std::cout << "Encoder random data: (" << randomData.rows() << ", " << randomData.cols() << ")" << std::endl;
+  Eigen::MatrixXd randomDataD = Eigen::MatrixXd::Random(nElements * nStates, nTimesteps * nRkStages * nDofsPerElement);
+  //std::cout << "Encoder random data: (" << randomData.rows() << ", " << randomData.cols() << ")" << std::endl;
+  Eigen::MatrixXf randomData = randomDataD.cast<float>();
 
-  for (int i = 0; i < 2; ++i) {
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  for (int i = 0; i < 1; ++i) {
   sparse_nn::Timer encTimer("Encoder timer");
   encTimer.start();
   Eigen::MatrixXf output = encoder.run(randomData);
   encTimer.stop();
-  encTimer.print();
+  if (printResults) { encTimer.print(); }
 
   decoder = sparse_nn::SparseModel("/work/06537/jwittmer/ls6/trained_models/time_rk/train_114/sparse_decoder/config.json");
   sparse_nn::Timer decTimer("Decoder timer");
   decTimer.start();
   Eigen::MatrixXf outputDec = decoder.run(output);
   decTimer.stop();
-  decTimer.print();
+  if (printResults) { decTimer.print(); }
   }
 }
 
 int main() {
+  MPI_Init(NULL, NULL);
 	// default constructor
-	sparse_nn::SparseLayer sl;
+	//sparse_nn::SparseLayer sl;
 
 	// load from file
-	sl.loadWeightsAndBiases("../models/weights_0.csv", "../models/biases_0.csv", {10, 8});
-	sl.setActivationFunction("elu");
-	sl.print();
+	//sl.loadWeightsAndBiases("../models/weights_0.csv", "../models/biases_0.csv", {10, 8});
+	//sl.setActivationFunction("elu");
+	//sl.print();
 
-	Eigen::MatrixXf inputMat = Eigen::MatrixXf::Random(10, 10);
-	std::cout << inputMat << "\n" << std::endl;
-	auto outputMat = sl.run(inputMat);
-	std::cout << *outputMat << std::endl;
-	std::cout << std::endl;
+	//Eigen::MatrixXf inputMat = Eigen::MatrixXf::Random(10, 10);
+	//std::cout << inputMat << "\n" << std::endl;
+	//auto outputMat = sl.run(inputMat);
+	//std::cout << *outputMat << std::endl;
+	//std::cout << std::endl;
 
-	std::cout << "Loading model!" << std::endl;
-	loadModel();
+	//std::cout << "Loading model!" << std::endl;
+	//loadModel();
 
-  std::cout << std::endl;
-  timeBatchPreparation();
+  //std::cout << std::endl;
+  //timeBatchPreparation();
 
-
-  omp_set_num_threads(56);
-  std::cout << std::endl;
-  #pragma omp parallel for
-  for(int i = 0; i < 56; ++i) {
-    timeEncoder();
+  // initialize thread pool
+  //omp_set_num_threads(56);
+  //#pragma omp parallel for
+  for(int i = 0; i < 1; ++i) {
+    timeEncoder(false);
   }
 
+  // do the timing that matters
+  //std::cout << std::endl;
+  //#pragma omp parallel for
+  for(int i = 0; i < 1; ++i) {
+    timeEncoder(true);
+  }
+  MPI_Finalize();
 	return 0;
 }

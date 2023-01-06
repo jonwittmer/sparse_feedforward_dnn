@@ -70,7 +70,6 @@ namespace sparse_nn {
 		// do compression
 		TIME_CODE(
       batchStorage.data = encoder_.run(temp);, "[COMPRESS] compression");
-
     //verbosePrinting(batchStorage);
 	}
 	
@@ -79,7 +78,7 @@ namespace sparse_nn {
 		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
 		// decompress batch
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
-    
+    std::cout << "requested timestep " << latestTimestep << std::endl;
     if (batchStorage.getEndingTimestep() - batchStorage.getStartingTimestep() + 1 < batchSize_) {
       batchDataMatrix_ = batchStorage.data.cast<double>();
     } else {
@@ -99,9 +98,6 @@ namespace sparse_nn {
     }
 
 		TIME_CODE(batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer, nLocalElements);, "[DECOMPRESS] copy to vector");
-    if (mpirank_ == 0) {
-      std::cout << "[DECOMPRESS] dataBuffer[0] = " << dataBuffer[0] << std::endl;
-    }
 		return {batchStorage.getStartingTimestep(), batchStorage.getEndingTimestep()};
 	}
 
@@ -116,10 +112,6 @@ namespace sparse_nn {
         std::cout << "[COMPRESS] Relative decompression error for batch: " << relError * 100;
         std::cout << "%" << std::endl;
       }
-      // std::cout << "Decoded mat (0, 0): " << decodedMat(0, 0) << "  original: " << batchDataMatrix_(0, 0) << std::endl;
-      // std::cout << "\n" << "Decoded mat: " << decodedMat(0, 1) << ", " << decodedMat(0, 2)  << ", "<< decodedMat(0, 3) << std::endl;
-      // std::cout << "\n" << "batchStorage.data: " << batchStorage.data(0, 1) << ", " << batchStorage.data(0, 2)  << ", ";
-      // std::cout << batchStorage.data(0, 3) << std::endl;
       std::cout << "[COMPRESS] True matrix norm: ";
       std::cout << batchNorm << std::endl;
     }

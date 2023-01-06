@@ -40,4 +40,4 @@ $(BUILD_DIR)/libautoencoder_c.so: $(OBJS)
 	$(CXX) ${INCLUDES}  -shared -o $@ $^ -march=native -O1 -lpthread 
 
 test: main.cpp $(BUILD_DIR)/libautoencoder_c.so
-	$(CXX) ${INCLUDES} $^ -o $@ -march=native -O1 -L./build -lautoencoder_c
+	$(CXX) ${INCLUDES} $^ -o $@ -march=native -O1 -L./build -lautoencoder_c -qopenmp

@@ -6,10 +6,11 @@
 
 #include <iostream>
 #include <Eigen/Core>
+#include <omp.h>
 #include <stdlib.h>
 
 void loadModel() {
-	std::string modelConfig = "../models/config.json";
+  std::string modelConfig = "../models/config.json";
 	sparse_nn::SparseModel sm(modelConfig);
 	Eigen::MatrixXf inputMat = Eigen::MatrixXf::Random(10, 10);
 	std::cout << inputMat << "\n" << std::endl;
@@ -80,7 +81,7 @@ void timeEncoder() {
   Eigen::MatrixXf randomData = Eigen::MatrixXf::Random(nElements * nStates, nTimesteps * nRkStages * nDofsPerElement);
   std::cout << "Encoder random data: (" << randomData.rows() << ", " << randomData.cols() << ")" << std::endl;
 
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < 2; ++i) {
   sparse_nn::Timer encTimer("Encoder timer");
   encTimer.start();
   Eigen::MatrixXf output = encoder.run(randomData);
@@ -117,8 +118,13 @@ int main() {
   std::cout << std::endl;
   timeBatchPreparation();
 
+
+  omp_set_num_threads(56);
   std::cout << std::endl;
-  timeEncoder();
+  #pragma omp parallel for
+  for(int i = 0; i < 56; ++i) {
+    timeEncoder();
+  }
 
 	return 0;
 }

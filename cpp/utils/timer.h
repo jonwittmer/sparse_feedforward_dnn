@@ -5,7 +5,7 @@
 #include <string>
 
 namespace sparse_nn {
-	using MsT = std::chrono::milliseconds;
+	using MsT = std::chrono::microseconds;
 	using TimestampT = decltype(std::chrono::system_clock::now());		
 
 	class Timer {
@@ -33,7 +33,7 @@ namespace sparse_nn {
 		}
 
 		inline void print() {
-			std::cout << name_ << ": " << getDuration() << " ms" << std::endl;
+			std::cout << name_ << ": " << getDuration() / 1000.0 << " ms" << std::endl;
 		}
 		
 	private:

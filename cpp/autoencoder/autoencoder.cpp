@@ -1,6 +1,6 @@
 #include "autoencoder/autoencoder.h"
-#include "autoencoder/batch_preparer.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/batch_preparer.h"
+#include "batch_preparation/compressed_batch.h"
 #include "normalization/normalization.h"
 #include "sparse/sparse_model.h"
 #include "utils/timer.h"
@@ -36,14 +36,14 @@ namespace sparse_nn {
 		batchDataMatrix_.resize(1, dataSize_);
 	}
 
-	void Autoencoder::compressStates(const std::vector<Timestep> &dataBuffer,
-																	 int startingTimestep, int currBatchSize) {		
+	void Autoencoder::compressStates(const double *dataBuffer,
+																	 int startingTimestep, int currBatchSize, int nLocalElements) {
     // first batch sets the batch size
     if (batchSize_ == 0) {
       batchSize_ = currBatchSize;
     }
-    
-		TIME_CODE(batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer);, "[COMPRESS] copy to matrix");
+
+		TIME_CODE(batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer, nLocalElements);, "[COMPRESS] copy to matrix");
     
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
 		
@@ -58,21 +58,27 @@ namespace sparse_nn {
 		TIME_CODE(
       batchStorage.mins = subtractAndReturnMins(batchDataMatrix_);		
       batchStorage.ranges = divideAndReturnRanges(batchDataMatrix_);,
-      "[COMPRESS] normalization"
+             "[COMPRESS] normalization"
     );
-
+    if (mpirank_ == 0) {
+      std::cout << "[DEBUG] " << batchDataMatrix_.rows() << std::endl;
+    }
+    Eigen::MatrixXf temp;
+    TIME_CODE(
+      temp = batchDataMatrix_.cast<float>();, "[COMPRESS] cast to float"
+    );
 		// do compression
-		TIME_CODE(batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());, "[COMPRESS] compression");
-		
-    verbosePrinting(batchStorage);
+		TIME_CODE(
+      batchStorage.data = encoder_.run(temp);, "[COMPRESS] compression");
+    //verbosePrinting(batchStorage);
 	}
 	
-	std::pair<int, int> Autoencoder::prefetchDecompressedStates(std::vector<Timestep>& dataBuffer,
-																															const int latestTimestep) {
+	std::pair<int, int> Autoencoder::prefetchDecompressedStates(double *dataBuffer,
+																															const int latestTimestep, int nLocalElements) {
 		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
 		// decompress batch
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
-    
+    //std::cout << "requested timestep " << latestTimestep << std::endl;
     if (batchStorage.getEndingTimestep() - batchStorage.getStartingTimestep() + 1 < batchSize_) {
       batchDataMatrix_ = batchStorage.data.cast<double>();
     } else {
@@ -84,9 +90,14 @@ namespace sparse_nn {
         "[DECOMPRESS] unnormalize"
       );
     }
+    
+    if (batchDataMatrix_.rows() == 0 || batchDataMatrix_.cols() == 0) {
+      if (true) {
+        std::cout << "Something went wrong with retrieving timestep " << latestTimestep << std::endl;
+      }
+    }
 
-		TIME_CODE(batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer);, "[DECOMPRESS] copy to vector");
-
+		TIME_CODE(batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer, nLocalElements);, "[DECOMPRESS] copy to vector");
 		return {batchStorage.getStartingTimestep(), batchStorage.getEndingTimestep()};
 	}
 

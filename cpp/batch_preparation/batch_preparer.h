@@ -12,6 +12,8 @@ namespace sparse_nn {
     BatchPreparer() = default;
     virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) = 0;
     virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) = 0;
+    virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const double *dataBuffer, int nLocalElements) = 0;
+    virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, double *dataBuffer, int nLocalElements) = 0;
   };
 
   class SpaceBatchPreparer : public BatchPreparer {
@@ -19,16 +21,25 @@ namespace sparse_nn {
     SpaceBatchPreparer();
     virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) override;
     virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) override;    
+    virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const double *dataBuffer, int nLocalElements) override {};
+    virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, double *dataBuffer, int nLocalElements) override {};
   };
 
   class TimeBatchPreparer : public BatchPreparer {
   public:
-    TimeBatchPreparer(int nDofsPerElement,  int nTimestepsPerBatch);
+    TimeBatchPreparer(int nDofsPerElement,  int nTimestepsPerBatch, int nStates, int nRkStages);
     virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const std::vector<Timestep>& dataBuffer) override;
     virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, std::vector<Timestep>& dataBuffer) override;
-    
+    virtual void copyVectorToMatrix(Eigen::MatrixXd& mat, const double *dataBuffer, int nLocalElements) override;
+    virtual void copyMatrixToVector(const Eigen::MatrixXd& mat, double *dataBuffer, int nLocalElements) override;
+
   private:
     int nDofsPerElement_;
     int nTimestepsPerBatch_;
+    int nStates_;
+    int nRkStages_;
+    int *mapCompressionToPde_ = nullptr;
+
+    void createMapping(int nLocalElements);
   };
 } // namespace sparse_nn

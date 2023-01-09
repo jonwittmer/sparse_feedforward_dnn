@@ -1,7 +1,7 @@
 #pragma once
 
-#include "autoencoder/batch_preparer.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/batch_preparer.h"
+#include "batch_preparation/compressed_batch.h"
 #include "sparse/sparse_model.h"
 
 #include <iostream>
@@ -18,9 +18,12 @@ namespace sparse_nn {
 		CompressionBase(const std::string encoderPath, const std::string decoderPath, int dataSize, int nStates,
                     int mpirank, bool debug);
 		
-		virtual void compressStates(const std::vector<Timestep> &dataBuffer, int startingTimestep, int currBatchSize) = 0;
+		virtual void compressStates(const std::vector<Timestep> &dataBuffer, int startingTimestep, int currBatchSize) {};
 		virtual std::pair<int, int> prefetchDecompressedStates(std::vector<Timestep> &dataBuffer,
-													   const int latestTimestep) = 0;
+                                                           const int latestTimestep) {};
+    virtual void compressStates(const double* dataBuffer, int startingTimestep, int currBatchSize, int nLocalElements){};
+		virtual std::pair<int, int> prefetchDecompressedStates(double *dataBuffer,
+                                                           const int latestTimestep, int nLocalElements){};
 		
 	protected:
     std::string encoderPath_;

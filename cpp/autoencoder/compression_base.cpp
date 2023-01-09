@@ -1,5 +1,5 @@
 #include "autoencoder/compression_base.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/compressed_batch.h"
 
 #include <iostream>
 #include <fstream>

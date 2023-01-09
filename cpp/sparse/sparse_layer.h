@@ -1,4 +1,5 @@
 #pragma once
+
 #include "sparse/layer.h"
 
 #include <map>

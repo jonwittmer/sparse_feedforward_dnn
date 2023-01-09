@@ -1,6 +1,6 @@
 #include "autoencoder/autoencoder_debug.h"
-#include "autoencoder/batch_preparer.h"
-#include "autoencoder/compressed_batch.h"
+#include "batch_preparation/batch_preparer.h"
+#include "batch_preparation/compressed_batch.h"
 #include "normalization/normalization.h"
 #include "sparse/sparse_model.h"
 #include "utils/timer.h"
@@ -19,14 +19,14 @@ namespace sparse_nn {
 		shouldWrite_(shouldWrite), 
     writeProbability_(writeProbability)	{}
 	
-	void AutoencoderDebug::compressStates(const std::vector<Timestep> &dataBuffer,
-																	 int startingTimestep, int currBatchSize) {
+	void AutoencoderDebug::compressStates(const double *dataBuffer,
+                                        int startingTimestep, int currBatchSize, int nLocalElements) {
 		if (debugMode_ && mpirank_ == 0) {
 			std::cout << "[COMPRESS] Storing timesteps " << startingTimestep << "-" << startingTimestep + currBatchSize - 1 << std::endl;
 		}
     
-    batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer);
-
+    batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer, nLocalElements);
+    shouldWrite_ = false;
 		if (shouldWrite_) {
 			writeDataToFile();
 		}
@@ -36,8 +36,8 @@ namespace sparse_nn {
 		return;
 	}
 	
-	std::pair<int, int> AutoencoderDebug::prefetchDecompressedStates(std::vector<Timestep>& dataBuffer,
-																const int latestTimestep) {
+	std::pair<int, int> AutoencoderDebug::prefetchDecompressedStates(double *dataBuffer,
+                                                                   const int latestTimestep, int nLocalElements) {
 		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
 		// decompress batch
 		if (debugMode_ && mpirank_ == 0) {
@@ -49,7 +49,7 @@ namespace sparse_nn {
     if (batchDataMatrix_.rows() == 0 || batchDataMatrix_.cols() == 0) {
       std::cout << "rank " << mpirank_ << " stored data has 0 shape at timestep " << latestTimestep << std::endl;
     }
-		batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer);
+		batchPreparer_->copyMatrixToVector(batchDataMatrix_, dataBuffer, nLocalElements);
 		
 		if (debugMode_ && mpirank_ == 0) {
 			std::cout << "[DECOMPRESS] Batch has timesteps " << batchStorage.getStartingTimestep();

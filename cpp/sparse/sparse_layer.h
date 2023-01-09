@@ -15,8 +15,8 @@ namespace sparse_nn {
 		SparseLayer() = default;
 
 		// initialize from data that is already prepared
-		SparseLayer(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
-					const std::vector<size_t>& matrixDims, const std::string activation);
+		//SparseLayer(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
+		//			const std::vector<size_t>& matrixDims, const std::string activation);
 
 		virtual void initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList,
 												const std::vector<float>& bias,

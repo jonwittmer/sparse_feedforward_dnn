@@ -25,6 +25,6 @@ namespace sparse_nn {
 		
 	protected:
     Eigen::MatrixXf denseMat_store_;
-    Eigen::Map<Eigen::MatrixXf, Eigen::Aligned32> denseMat_;
+    Eigen::Map<Eigen::MatrixXf, Eigen::Aligned32> denseMat_{nullptr, 0, 0};
 	};
 } // namespace sparse_nn

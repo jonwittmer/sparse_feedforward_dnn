@@ -13,11 +13,11 @@
 #define SPARSE_NN_DEBUG 1
 
 namespace sparse_nn {
-	SparseLayer::SparseLayer(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
-                           const std::vector<size_t>& matrixDims, const std::string activation="none") {
-		activation_ = activation;
-		initializeWeightsAndBiases(tripletList, bias, matrixDims);
-	}
+	//SparseLayer::SparseLayer(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
+  //                         const std::vector<size_t>& matrixDims, const std::string activation="none") {
+	//	activation_ = activation;
+	//	initializeWeightsAndBiases(tripletList, bias, matrixDims);
+	//}
 
     void SparseLayer::initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList,
 												 const std::vector<float>& bias,

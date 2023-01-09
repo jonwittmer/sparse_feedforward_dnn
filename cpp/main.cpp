@@ -68,12 +68,15 @@ void timeBatchPreparation() {
 }
 
 void timeEncoder(bool printResults) {
+  int commSize;
+  MPI_Comm_size(MPI_COMM_WORLD, &commSize);
   // parameters that determine the size of the data
+
   int nTimesteps = 16;
   int nStates = 9;
   int nDofsPerElement = 64;
   int nRkStages = 4;
-  int nElements = 98;
+  int nElements = 112 * 2 / commSize;
   sparse_nn::SparseModel encoder;
   sparse_nn::SparseModel decoder;
   
@@ -90,8 +93,9 @@ void timeEncoder(bool printResults) {
   Eigen::MatrixXf output = encoder.run(randomData);
   encTimer.stop();
   if (printResults) { encTimer.print(); }
-
+  
   decoder = sparse_nn::SparseModel("/work/06537/jwittmer/ls6/trained_models/time_rk/train_114/sparse_decoder/config.json");
+  MPI_Barrier(MPI_COMM_WORLD);
   sparse_nn::Timer decTimer("Decoder timer");
   decTimer.start();
   Eigen::MatrixXf outputDec = decoder.run(output);
@@ -130,11 +134,15 @@ int main() {
   }
 
   // do the timing that matters
-  //std::cout << std::endl;
   //#pragma omp parallel for
+  //sparse_nn::Timer totalTimer("Time to do all work");
+  //totalTimer.start();
   for(int i = 0; i < 1; ++i) {
     timeEncoder(true);
   }
+  //totalTimer.stop();
+  //totalTimer.print();
+
   MPI_Finalize();
 	return 0;
 }

@@ -78,7 +78,7 @@ namespace sparse_nn {
 		// in decompression, we shouldn't be creating any new batches, so only one timestep is needed to
 		// decompress batch
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
-    std::cout << "requested timestep " << latestTimestep << std::endl;
+    //std::cout << "requested timestep " << latestTimestep << std::endl;
     if (batchStorage.getEndingTimestep() - batchStorage.getStartingTimestep() + 1 < batchSize_) {
       batchDataMatrix_ = batchStorage.data.cast<double>();
     } else {

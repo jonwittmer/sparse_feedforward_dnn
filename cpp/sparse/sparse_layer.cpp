@@ -1,3 +1,4 @@
+#include "sparse/layer.h"
 #include "sparse/sparse_layer.h"
 
 #include <algorithm>
@@ -11,9 +12,9 @@
 
 #define SPARSE_NN_DEBUG 1
 
-namespace sparse_nn {  
+namespace sparse_nn {
 	SparseLayer::SparseLayer(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
-							 const std::vector<size_t>& matrixDims, const std::string activation="none") {
+                           const std::vector<size_t>& matrixDims, const std::string activation="none") {
 		activation_ = activation;
 		initializeWeightsAndBiases(tripletList, bias, matrixDims);
 	}
@@ -23,9 +24,12 @@ namespace sparse_nn {
 												 const std::vector<size_t>& matrixDims) {
 		sparseMat_.resize(matrixDims[0], matrixDims[1]); // transpose is embedded in TF weights matrix
 		sparseMat_.setFromTriplets(tripletList.begin(), tripletList.end());
-		bias_.resize(bias.size());
+		bias_store_.resize(bias.size());
 		std::vector<float> biasCopy(bias);
-		bias_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
+		bias_store_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
+
+    // associate map variable with data
+    new (&bias_) Eigen::Map<Eigen::VectorXf, Eigen::Aligned32>(bias_store_.data(), bias_store_.size());
 
 		activationMap_ = defineActivationFunctions();
 		

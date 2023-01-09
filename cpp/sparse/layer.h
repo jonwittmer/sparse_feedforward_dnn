@@ -21,7 +21,7 @@ namespace sparse_nn {
 	
 	class Layer {
 	public:
-	    Layer() = default;
+    Layer() = default;
 
 		virtual void initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
 												const std::vector<size_t>& matrixDims) = 0;
@@ -41,7 +41,8 @@ namespace sparse_nn {
 		virtual void print() const = 0;
 		
 	protected:	
-		Eigen::VectorXf bias_;
+		Eigen::VectorXf bias_store_;
+    Eigen::Map<Eigen::VectorXf, Eigen::Aligned32> bias_;
 		std::string activation_ = "none";
 		size_t reservedBatchSize_;
 		Eigen::MatrixXf outputMat_;

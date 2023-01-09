@@ -24,6 +24,7 @@ namespace sparse_nn {
 		virtual void print() const override;
 		
 	protected:
-		Eigen::MatrixXf denseMat_;
+    Eigen::MatrixXf denseMat_store_;
+    Eigen::Map<Eigen::MatrixXf, Eigen::Aligned32> denseMat_;
 	};
 } // namespace sparse_nn

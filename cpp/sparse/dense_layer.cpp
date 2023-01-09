@@ -20,11 +20,15 @@ namespace sparse_nn {
 		Eigen::SparseMatrix<float> sparseMat;
 		sparseMat.resize(matrixDims[0], matrixDims[1]);
 		sparseMat.setFromTriplets(tripletList.begin(), tripletList.end());
-		denseMat_ = Eigen::MatrixXf(sparseMat);
-		bias_.resize(bias.size());
+		denseMat_store_ = Eigen::MatrixXf(sparseMat);
+		bias_store_.resize(bias.size());
 		std::vector<float> biasCopy(bias);
-		bias_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
+		bias_store_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
 
+    // initialize maps
+    new (&denseMat_) Eigen::Map<Eigen::MatrixXf, Eigen::Aligned32>(denseMat_store_.data(), denseMat_store_.rows(), denseMat_store_.cols());
+    new (&bias_) Eigen::Map<Eigen::VectorXf, Eigen::Aligned32>(bias_store_.data(), bias_store_.size());
+    
 		activationMap_ = defineActivationFunctions();
 		
 		initialized_ = true;

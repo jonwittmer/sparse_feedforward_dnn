@@ -45,7 +45,9 @@ namespace sparse_nn {
 			layers.back()->loadWeightsAndBiases(basePath + info.weightsFilename,
 												basePath + info.biasesFilename,
 												info.dimension);
+      
 			layers.back()->setActivationFunction(info.activation);
+      
 		}
 	}
 

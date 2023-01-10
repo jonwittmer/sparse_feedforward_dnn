@@ -37,9 +37,9 @@ namespace sparse_nn {
                                                              sparseMatStorage_.innerIndexPtr(),
                                                              sparseMatStorage_.valuePtr(),
                                                              sparseMatStorage_.innerNonZeroPtr());
-    std::cout << sparseMat_.rows() << ", " << sparseMat_.cols() << "   nnz: " << sparseMat_.nonZeros() << std::endl;
+   
 		activationMap_ = defineActivationFunctions();
-		
+
 		initialized_ = true;
 	}
 

@@ -12,19 +12,19 @@
 #define SPARSE_NN_DEBUG 1
 
 namespace sparse_nn {  
-    void DenseLayer::initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList,
-												 const std::vector<float>& bias,
-												 const std::vector<size_t>& matrixDims) {
+  void DenseLayer::initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList,
+                                              const std::vector<float>& bias,
+                                              const std::vector<size_t>& matrixDims) {
 		// since we have the matrix data in COO format, create sparse tensor first then
 		// convert to dense for convenience
-		Eigen::SparseMatrix<float> sparseMat;
+    Eigen::SparseMatrix<float> sparseMat;
 		sparseMat.resize(matrixDims[0], matrixDims[1]);
 		sparseMat.setFromTriplets(tripletList.begin(), tripletList.end());
 		denseMatStorage_ = Eigen::MatrixXf(sparseMat);
 		biasStorage_.resize(bias.size());
 		std::vector<float> biasCopy(bias);
 		biasStorage_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
-
+    
     // initialize maps
     new (&denseMat_) Eigen::Map<Eigen::MatrixXf, Eigen::Aligned32>(denseMatStorage_.data(), 
                                                                    denseMatStorage_.rows(), 
@@ -32,7 +32,6 @@ namespace sparse_nn {
     new (&bias_) Eigen::Map<Eigen::VectorXf, Eigen::Aligned32>(biasStorage_.data(), biasStorage_.size());
     
 		activationMap_ = defineActivationFunctions();
-		std::cout << "Made it here" << std::endl;
 		initialized_ = true;
 	}
 

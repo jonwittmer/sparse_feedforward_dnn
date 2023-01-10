@@ -267,7 +267,6 @@ void spawn_autoencoder_thread(ae_parameters_t *aeParams) {
 
   //autoencoder_global = create_autoencoder(aeParams);
   create_autoencoder(aeParams);
-  std::cout << "Made it here " << std::endl;
 
   // test that copy-retrieve is working correctly in AutoencoderDebug class
   if (aeParams->writeProbability > 0) {

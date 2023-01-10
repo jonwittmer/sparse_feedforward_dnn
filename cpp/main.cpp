@@ -76,7 +76,7 @@ void timeEncoder(bool printResults) {
   int nStates = 9;
   int nDofsPerElement = 64;
   int nRkStages = 4;
-  int nElements = 112 * 2 / commSize;
+  int nElements = 96;
   sparse_nn::SparseModel encoder;
   sparse_nn::SparseModel decoder;
   

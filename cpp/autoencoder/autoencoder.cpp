@@ -63,13 +63,13 @@ namespace sparse_nn {
     if (mpirank_ == 0) {
       std::cout << "[DEBUG] " << batchDataMatrix_.rows() << std::endl;
     }
-    Eigen::MatrixXf temp;
-    TIME_CODE(
-      temp = batchDataMatrix_.cast<float>();, "[COMPRESS] cast to float"
-    );
+    // Eigen::MatrixXf temp;
+    // TIME_CODE(
+    //   temp = batchDataMatrix_.cast<float>();, "[COMPRESS] cast to float"
+    // );
 		// do compression
 		TIME_CODE(
-      batchStorage.data = encoder_.run(temp);, "[COMPRESS] compression");
+      batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());, "[COMPRESS] compression");
     //verbosePrinting(batchStorage);
 	}
 	

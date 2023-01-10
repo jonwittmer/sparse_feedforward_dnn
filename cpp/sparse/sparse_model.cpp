@@ -11,13 +11,13 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <mpi.h>
 
 #include <nlohmann/json.hpp>
 
 namespace sparse_nn {
 	SparseModel::SparseModel(const std::string configFilename) {
 		// parse json file to get list of filenames
-    //std::cout << "loading neural network from " << configFilename << std::endl;
 		std::ifstream f(configFilename);
 		json allLayersInfo = json::parse(f);
 
@@ -26,16 +26,19 @@ namespace sparse_nn {
 		const size_t lastSlash = configFilename.rfind('/');
 		if (std::string::npos != lastSlash) {
 			basePath += configFilename.substr(0, lastSlash) + "/";
-		}
-		//std::cout << basePath << std::endl;
+		} 
 		
+    int globalRank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &globalRank);
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, globalRank, MPI_INFO_NULL, &nodalComm_);
+
 		for (const auto& currLayerInfo : allLayersInfo["layers"]) {
 			const ModelInfo info = currLayerInfo.get<ModelInfo>();
 			if (info.layerType == "sparse") {
-				layers.emplace_back(std::make_unique<SparseLayer>());
+				layers.emplace_back(std::make_unique<SparseLayer>(&nodalComm_));
 			}
 			else if (info.layerType == "dense") {
-				layers.emplace_back(std::make_unique<DenseLayer>());
+				layers.emplace_back(std::make_unique<DenseLayer>(&nodalComm_));
 			}
 			else {
 				std::cout << "layer type " << info.layerType <<  " not recognized. ";
@@ -47,7 +50,6 @@ namespace sparse_nn {
 												info.dimension);
       
 			layers.back()->setActivationFunction(info.activation);
-      
 		}
 	}
 

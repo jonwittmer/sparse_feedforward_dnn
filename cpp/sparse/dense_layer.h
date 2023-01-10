@@ -7,11 +7,12 @@
 #include <vector>
 
 #include <Eigen/SparseCore>
+#include <mpi.h>
 
 namespace sparse_nn {	
 	class DenseLayer : public Layer {
 	public:
-		DenseLayer() = default;
+  DenseLayer(MPI_Comm *comm) : Layer(comm) { layerType_ = "dense"; }
 
 		virtual void initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList,
 												const std::vector<float>& bias,

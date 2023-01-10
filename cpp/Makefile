@@ -1,4 +1,4 @@
-CXX=icpc
+CXX=mpicxx
 #SOURCE=main.cpp sparse/sparse_layer.cpp sparse/sparse_model.cpp sparse/layer.cpp sparse/dense_layer.cpp autoencoder/compressed_batch.cpp autoencoder/autoencoder.cpp
 INCLUDES := -I${EIGEN_DIR} -I${JSON_DIR} -I./ #-Isparse/ -Inormalization/ -Iautoencoder/ -Iutils/
 BUILD_DIR := ./build

@@ -7,7 +7,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
-
+#include <mpi.h>
 
 namespace sparse_nn {
 	inline std::map<std::string, std::function<float(float)>> defineActivationFunctions() {
@@ -21,7 +21,7 @@ namespace sparse_nn {
 	
 	class Layer {
 	public:
-    Layer() = default;
+    Layer(MPI_Comm *comm) : nodalComm_(comm) {};
 
 		virtual void initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
 												const std::vector<size_t>& matrixDims) = 0;
@@ -47,6 +47,16 @@ namespace sparse_nn {
 		size_t reservedBatchSize_;
 		Eigen::MatrixXf outputMat_;
 		bool initialized_ = false;
+    std::string layerType_ = "layer";
+
+    // mpi stuff
+    int globalRank_;
+    int localRank_;
+    MPI_Comm *nodalComm_;
+    MPI_Win biasWindow_;
+    MPI_Win weightsWindow_;
+    float *biasPtr_;
+    float *weightsPtr_;
 
 		// activation functions so that we can easily swap activation in unaryExpr call
 		std::map<std::string, std::function<float(float)>> activationMap_;

@@ -9,16 +9,21 @@
 
 #include <Eigen/Core>
 #include <Eigen/SparseCore>
-
+#include <mpi.h>
 
 namespace sparse_nn {  	
 	void Layer::loadWeightsAndBiases(const std::string weightsFilename, const std::string biasFilename,
 										   const std::vector<size_t>& matrixDims) {
-		std::vector<Eigen::Triplet<float>> tripletList = loadWeightsFromCsv(weightsFilename);
-		std::vector<float> bias = loadBiasesFromCsv(biasFilename);
-		
-		// check dimensions match - TF computes x.T @ matrix + bias, so matrixDims[1] is correct bias size
-		assert(("Weights and bias do not have matching dimensions", matrixDims[1] == bias.size()));
+    MPI_Comm_rank(*nodalComm_, &localRank_);
+
+    std::vector<Eigen::Triplet<float>> tripletList;
+    std::vector<float> bias;
+    if (localRank_ == 0) {
+      tripletList = loadWeightsFromCsv(weightsFilename);
+      bias = loadBiasesFromCsv(biasFilename);
+      // check dimensions match - TF computes x.T @ matrix + bias, so matrixDims[1] is correct bias size
+      assert(("Weights and bias do not have matching dimensions", matrixDims[1] == bias.size()));
+    }
 		
 		initializeWeightsAndBiases(tripletList, bias, matrixDims);
 	}

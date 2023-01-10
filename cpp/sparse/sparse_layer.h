@@ -8,11 +8,12 @@
 #include <vector>
 
 #include <Eigen/SparseCore>
+#include <mpi.h>
 
 namespace sparse_nn {	
 	class SparseLayer : public Layer {
 	public:
-		SparseLayer() = default;
+    SparseLayer(MPI_Comm *comm) : Layer(comm) { layerType_ = "sparse"; }
 
 		// initialize from data that is already prepared
 		//SparseLayer(const std::vector<Eigen::Triplet<float>>& tripletList, const std::vector<float>& bias,
@@ -29,6 +30,9 @@ namespace sparse_nn {
 		virtual void print() const override;
 		
 	protected:
+    int *innerIndexPtr_;
+    int *outerIndexPtr_;
+    MPI_Win indexWindow_;
     Eigen::SparseMatrix<float> sparseMatStorage_;
     Eigen::Map<Eigen::SparseMatrix<float>> sparseMat_{0, 0, 0, nullptr, nullptr, nullptr, nullptr};
 	};

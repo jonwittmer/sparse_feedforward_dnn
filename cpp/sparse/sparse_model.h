@@ -8,6 +8,7 @@
 
 #include <Eigen/Core>
 #include <Eigen/Dense>
+#include <mpi.h>
 
 #include <nlohmann/json.hpp>
 
@@ -39,5 +40,6 @@ namespace sparse_nn {
 
 	private:
 		std::vector<std::unique_ptr<Layer>> layers;
+    MPI_Comm nodalComm_;
 	};
 } // namespace sparse_nn

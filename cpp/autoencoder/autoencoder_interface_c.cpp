@@ -26,7 +26,8 @@ double *currSharedDataBuffer;
 int currBufferMinTimestep = -1;
 int currBufferMaxTimestep = -1;
 bool exitFlag;
-std::unique_ptr<sparse_nn::CompressionBase> autoencoder_global;
+//std::unique_ptr<sparse_nn::CompressionBase> autoencoder_global;
+sparse_nn::CompressionBase *autoencoder_global;
 
 void *run_autoencoder_manager(void *args);
 
@@ -35,61 +36,118 @@ void TestAutoencoder() {
 	std::cout << "Autoencoder library loaded successfully!\n" << std::endl;
 }
 
-std::unique_ptr<sparse_nn::CompressionBase> create_autoencoder(ae_parameters_t *aeParams) {
-  std::unique_ptr<sparse_nn::CompressionBase> autoencoder;
+void create_autoencoder(ae_parameters_t *aeParams) {
   bool shouldWriteDataToFile = (aeParams->writeProbability > 0);
 
   std::string compressionStrategy = aeParams->compressionStrategy;
-  if (shouldWriteDataToFile) {
-    if (compressionStrategy == "space" || compressionStrategy == "default") {
-      autoencoder = std::make_unique<sparse_nn::SpaceAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
-                                                                       aeParams->dataSize, aeParams->nStates,
-                                                                       aeParams->mpirank, shouldWriteDataToFile, 
-                                                                       aeParams->writeProbability, aeParams->debugMode);
-    } else if (compressionStrategy == std::string("time")) {
-      if (aeParams->mpirank == 0) {
-        std::cout << "creating TimeAutoencoderDebug" << std::endl;
-      }
-      autoencoder = std::make_unique<sparse_nn::TimeAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
-                                                                      aeParams->nDofsPerElement, aeParams->nStates, 
-                                                                      aeParams->batchSize,
-                                                                      aeParams->mpirank, shouldWriteDataToFile, 
-                                                                      aeParams->writeProbability, aeParams->debugMode);
-    } else if (compressionStrategy == std::string("time_rk")) {
-      if (aeParams->mpirank == 0) {
-        std::cout << "creating TimeRkAutoencoderDebug" << std::endl;
-      }
-      autoencoder = std::make_unique<sparse_nn::TimeRkAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
-                                                                        aeParams->nDofsPerElement, aeParams->nStates, 
-                                                                        aeParams->batchSize,
-                                                                        aeParams->mpirank, shouldWriteDataToFile, 
-                                                                        aeParams->writeProbability, aeParams->debugMode);
-    } else {
-      std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in debug mode.";
-      std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
-    }
+  // if (shouldWriteDataToFile) {
+  //   if (compressionStrategy == "space" || compressionStrategy == "default") {
+  //     autoencoder = std::make_unique<sparse_nn::SpaceAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+  //                                                                      aeParams->dataSize, aeParams->nStates,
+  //                                                                      aeParams->mpirank, shouldWriteDataToFile, 
+  //                                                                      aeParams->writeProbability, aeParams->debugMode);
+  //   } else if (compressionStrategy == std::string("time")) {
+  //     if (aeParams->mpirank == 0) {
+  //       std::cout << "creating TimeAutoencoderDebug" << std::endl;
+  //     }
+  //     autoencoder = std::make_unique<sparse_nn::TimeAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+  //                                                                     aeParams->nDofsPerElement, aeParams->nStates, 
+  //                                                                     aeParams->batchSize,
+  //                                                                     aeParams->mpirank, shouldWriteDataToFile, 
+  //                                                                     aeParams->writeProbability, aeParams->debugMode);
+  //   } else if (compressionStrategy == std::string("time_rk")) {
+  //     if (aeParams->mpirank == 0) {
+  //       std::cout << "creating TimeRkAutoencoderDebug" << std::endl;
+  //     }
+  //     autoencoder = std::make_unique<sparse_nn::TimeRkAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+  //                                                                       aeParams->nDofsPerElement, aeParams->nStates, 
+  //                                                                       aeParams->batchSize,
+  //                                                                       aeParams->mpirank, shouldWriteDataToFile, 
+  //                                                                       aeParams->writeProbability, aeParams->debugMode);
+  //   } else {
+  //     std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in debug mode.";
+  //     std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
+  //   }
+  // } else {
+    //     if (compressionStrategy == "space" || compressionStrategy == "default") {
+    //   autoencoder = std::make_unique<sparse_nn::SpaceAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+    //                                                               aeParams->dataSize, aeParams->nStates,
+    //                                                               aeParams->mpirank, aeParams->debugMode);
+    // } else if (compressionStrategy == std::string("time")) {
+    //   autoencoder = std::make_unique<sparse_nn::TimeAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+    //                                                              aeParams->nDofsPerElement, aeParams->nStates, 
+    //                                                              aeParams->batchSize,
+    //                                                              aeParams->mpirank, aeParams->debugMode);
+    // } else
+          
+  if (compressionStrategy == std::string("time_rk")) {
+    autoencoder_global = new sparse_nn::TimeRkAutoencoder(aeParams->encoderDir, aeParams->decoderDir, 
+                                                          aeParams->nDofsPerElement, aeParams->nStates, 
+                                                          aeParams->batchSize,
+                                                          aeParams->mpirank, aeParams->debugMode);
   } else {
-    if (compressionStrategy == "space" || compressionStrategy == "default") {
-      autoencoder = std::make_unique<sparse_nn::SpaceAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
-                                                                  aeParams->dataSize, aeParams->nStates,
-                                                                  aeParams->mpirank, aeParams->debugMode);
-    } else if (compressionStrategy == std::string("time")) {
-      autoencoder = std::make_unique<sparse_nn::TimeAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
-                                                                 aeParams->nDofsPerElement, aeParams->nStates, 
-                                                                 aeParams->batchSize,
-                                                                 aeParams->mpirank, aeParams->debugMode);
-    } else if (compressionStrategy == std::string("time_rk")) {
-      autoencoder = std::make_unique<sparse_nn::TimeRkAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
-                                                                   aeParams->nDofsPerElement, aeParams->nStates, 
-                                                                   aeParams->batchSize,
-                                                                   aeParams->mpirank, aeParams->debugMode);
-    } else {
-      std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in pruduction mode.";
-      std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
-    }
+    std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in pruduction mode.";
+    std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
   }
-	return std::move(autoencoder);
+  //}
 }
+
+// std::unique_ptr<sparse_nn::CompressionBase> create_autoencoder(ae_parameters_t *aeParams) {
+//   std::unique_ptr<sparse_nn::CompressionBase> autoencoder;
+//   bool shouldWriteDataToFile = (aeParams->writeProbability > 0);
+
+//   std::string compressionStrategy = aeParams->compressionStrategy;
+//   if (shouldWriteDataToFile) {
+//     if (compressionStrategy == "space" || compressionStrategy == "default") {
+//       autoencoder = std::make_unique<sparse_nn::SpaceAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+//                                                                        aeParams->dataSize, aeParams->nStates,
+//                                                                        aeParams->mpirank, shouldWriteDataToFile, 
+//                                                                        aeParams->writeProbability, aeParams->debugMode);
+//     } else if (compressionStrategy == std::string("time")) {
+//       if (aeParams->mpirank == 0) {
+//         std::cout << "creating TimeAutoencoderDebug" << std::endl;
+//       }
+//       autoencoder = std::make_unique<sparse_nn::TimeAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+//                                                                       aeParams->nDofsPerElement, aeParams->nStates, 
+//                                                                       aeParams->batchSize,
+//                                                                       aeParams->mpirank, shouldWriteDataToFile, 
+//                                                                       aeParams->writeProbability, aeParams->debugMode);
+//     } else if (compressionStrategy == std::string("time_rk")) {
+//       if (aeParams->mpirank == 0) {
+//         std::cout << "creating TimeRkAutoencoderDebug" << std::endl;
+//       }
+//       autoencoder = std::make_unique<sparse_nn::TimeRkAutoencoderDebug>(aeParams->encoderDir, aeParams->decoderDir, 
+//                                                                         aeParams->nDofsPerElement, aeParams->nStates, 
+//                                                                         aeParams->batchSize,
+//                                                                         aeParams->mpirank, shouldWriteDataToFile, 
+//                                                                         aeParams->writeProbability, aeParams->debugMode);
+//     } else {
+//       std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in debug mode.";
+//       std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
+//     }
+//   } else {
+//     if (compressionStrategy == "space" || compressionStrategy == "default") {
+//       autoencoder = std::make_unique<sparse_nn::SpaceAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+//                                                                   aeParams->dataSize, aeParams->nStates,
+//                                                                   aeParams->mpirank, aeParams->debugMode);
+//     } else if (compressionStrategy == std::string("time")) {
+//       autoencoder = std::make_unique<sparse_nn::TimeAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+//                                                                  aeParams->nDofsPerElement, aeParams->nStates, 
+//                                                                  aeParams->batchSize,
+//                                                                  aeParams->mpirank, aeParams->debugMode);
+//     } else if (compressionStrategy == std::string("time_rk")) {
+//       autoencoder = std::make_unique<sparse_nn::TimeRkAutoencoder>(aeParams->encoderDir, aeParams->decoderDir, 
+//                                                                    aeParams->nDofsPerElement, aeParams->nStates, 
+//                                                                    aeParams->batchSize,
+//                                                                    aeParams->mpirank, aeParams->debugMode);
+//     } else {
+//       std::cout << "Attempting to use unsupported strategy " << compressionStrategy << " in pruduction mode.";
+//       std::cout << "Choose between 'space', 'time', 'time_rk', or 'default' which is 'space'." << std::endl;
+//     }
+//   }
+
+// 	return std::move(autoencoder);
+// }
 
 void print_data(double **dataLocations) {
 	for (int i=0; i<20; i++) {
@@ -207,8 +265,10 @@ void spawn_autoencoder_thread(ae_parameters_t *aeParams) {
 	
   initialize_storage();
 
-  autoencoder_global = create_autoencoder(aeParams);
-  
+  //autoencoder_global = create_autoencoder(aeParams);
+  create_autoencoder(aeParams);
+  std::cout << "Made it here " << std::endl;
+
   // test that copy-retrieve is working correctly in AutoencoderDebug class
   if (aeParams->writeProbability > 0) {
     bool failed = testAutoencoderDebug(aeParams);

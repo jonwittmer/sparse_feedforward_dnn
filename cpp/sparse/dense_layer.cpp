@@ -20,17 +20,19 @@ namespace sparse_nn {
 		Eigen::SparseMatrix<float> sparseMat;
 		sparseMat.resize(matrixDims[0], matrixDims[1]);
 		sparseMat.setFromTriplets(tripletList.begin(), tripletList.end());
-		denseMat_store_ = Eigen::MatrixXf(sparseMat);
-		bias_store_.resize(bias.size());
+		denseMatStorage_ = Eigen::MatrixXf(sparseMat);
+		biasStorage_.resize(bias.size());
 		std::vector<float> biasCopy(bias);
-		bias_store_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
+		biasStorage_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
 
     // initialize maps
-    new (&denseMat_) Eigen::Map<Eigen::MatrixXf, Eigen::Aligned32>(denseMat_store_.data(), denseMat_store_.rows(), denseMat_store_.cols());
-    new (&bias_) Eigen::Map<Eigen::VectorXf, Eigen::Aligned32>(bias_store_.data(), bias_store_.size());
+    new (&denseMat_) Eigen::Map<Eigen::MatrixXf, Eigen::Aligned32>(denseMatStorage_.data(), 
+                                                                   denseMatStorage_.rows(), 
+                                                                   denseMatStorage_.cols());
+    new (&bias_) Eigen::Map<Eigen::VectorXf, Eigen::Aligned32>(biasStorage_.data(), biasStorage_.size());
     
 		activationMap_ = defineActivationFunctions();
-		
+		std::cout << "Made it here" << std::endl;
 		initialized_ = true;
 	}
 

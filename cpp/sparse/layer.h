@@ -41,7 +41,7 @@ namespace sparse_nn {
 		virtual void print() const = 0;
 		
 	protected:	
-		Eigen::VectorXf bias_store_;
+		Eigen::VectorXf biasStorage_;
     Eigen::Map<Eigen::VectorXf, Eigen::Aligned32> bias_{nullptr, 0};
 		std::string activation_ = "none";
 		size_t reservedBatchSize_;

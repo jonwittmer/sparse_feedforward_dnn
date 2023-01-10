@@ -29,6 +29,7 @@ namespace sparse_nn {
 		virtual void print() const override;
 		
 	protected:
-		Eigen::SparseMatrix<float> sparseMat_;
+    Eigen::SparseMatrix<float> sparseMatStorage_;
+    Eigen::Map<Eigen::SparseMatrix<float>> sparseMat_{0, 0, 0, nullptr, nullptr, nullptr, nullptr};
 	};
 } // namespace sparse_nn

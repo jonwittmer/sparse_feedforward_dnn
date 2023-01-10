@@ -22,25 +22,33 @@ namespace sparse_nn {
     void SparseLayer::initializeWeightsAndBiases(const std::vector<Eigen::Triplet<float>>& tripletList,
 												 const std::vector<float>& bias,
 												 const std::vector<size_t>& matrixDims) {
-		sparseMat_.resize(matrixDims[0], matrixDims[1]); // transpose is embedded in TF weights matrix
-		sparseMat_.setFromTriplets(tripletList.begin(), tripletList.end());
-		bias_store_.resize(bias.size());
+		sparseMatStorage_.resize(matrixDims[0], matrixDims[1]); // transpose is embedded in TF weights matrix
+		sparseMatStorage_.setFromTriplets(tripletList.begin(), tripletList.end());
+		biasStorage_.resize(bias.size());
 		std::vector<float> biasCopy(bias);
-		bias_store_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
+		biasStorage_ = Eigen::Map<Eigen::VectorXf>(biasCopy.data(), biasCopy.size());
 
     // associate map variable with data
-    new (&bias_) Eigen::Map<Eigen::VectorXf, Eigen::Aligned32>(bias_store_.data(), bias_store_.size());
-
+    new (&bias_) Eigen::Map<Eigen::VectorXf, Eigen::Aligned32>(biasStorage_.data(), biasStorage_.size());
+    new (&sparseMat_) Eigen::Map<Eigen::SparseMatrix<float>>(sparseMatStorage_.rows(), 
+                                                             sparseMatStorage_.cols(), 
+                                                             sparseMatStorage_.nonZeros(), 
+                                                             sparseMatStorage_.outerIndexPtr(), 
+                                                             sparseMatStorage_.innerIndexPtr(),
+                                                             sparseMatStorage_.valuePtr(),
+                                                             sparseMatStorage_.innerNonZeroPtr());
+    std::cout << sparseMat_.rows() << ", " << sparseMat_.cols() << "   nnz: " << sparseMat_.nonZeros() << std::endl;
 		activationMap_ = defineActivationFunctions();
 		
 		initialized_ = true;
 	}
 
 	const Eigen::MatrixXf* SparseLayer::run(const Eigen::MatrixXf& inputMat) {
-		assert(("Matrix dimension mismatch", inputMat.cols() == sparseMat_.rows()));
+    assert(("Matrix dimension mismatch", inputMat.cols() == sparseMat_.rows()));
 		allocateOutputMat(inputMat.rows());
 
 		// activation(Ax + b) 
+    
 		outputMat_ = ((inputMat * sparseMat_).rowwise() + bias_.transpose());
 		outputMat_.noalias() = outputMat_.unaryExpr(activationMap_[activation_]);
 		return &outputMat_;

@@ -31,7 +31,7 @@ namespace sparse_nn {
 			writeDataToFile();
 		}
 		
-		CompressedBatch<Eigen::MatrixXd>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
+		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
 		batchStorage.data = batchDataMatrix_;
 		return;
 	}
@@ -44,7 +44,7 @@ namespace sparse_nn {
 			std::cout << "[DECOMPRESS] Fetching timestep " << latestTimestep << std::endl;
 		}
     
-		CompressedBatch<Eigen::MatrixXd>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
+		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
 		batchDataMatrix_ = batchStorage.data;
     if (batchDataMatrix_.rows() == 0 || batchDataMatrix_.cols() == 0) {
       std::cout << "rank " << mpirank_ << " stored data has 0 shape at timestep " << latestTimestep << std::endl;
@@ -59,7 +59,7 @@ namespace sparse_nn {
 		return {batchStorage.getStartingTimestep(), batchStorage.getEndingTimestep()};
 	}
 
-	CompressedBatch<Eigen::MatrixXd>& AutoencoderDebug::getBatchStorage(const int startingTimestep, const int endingTimestep) {
+	CompressedBatch<Eigen::MatrixXf>& AutoencoderDebug::getBatchStorage(const int startingTimestep, const int endingTimestep) {
 		// this function as written is pretty brittle as handling for batches that cross
 		// muliple CompressedBatch objects is not detected or supported
 		for (auto& batch : compressedStates_) {

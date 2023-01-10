@@ -40,7 +40,7 @@ void timeBatchPreparation() {
   }
 
   auto prep = sparse_nn::TimeBatchPreparer(nDofsPerElement, nTimesteps, nStates, nRkStages);
-  Eigen::MatrixXd mat;
+  Eigen::MatrixXf mat;
 
   sparse_nn::Timer copyToMatrixTimer("Copy to matrix");
   copyToMatrixTimer.start();

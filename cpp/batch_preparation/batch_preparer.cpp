@@ -187,12 +187,10 @@ namespace sparse_nn {
       // compute min and range
       //float *currMin = mins.data() + row;
       //float *currMax = ranges.data() + row;
-      float currMin; 
-      float currMax;
+      double currMin; 
+      double currMax;
 
       if (currBatchSize == nTimestepsPerBatch_) {
-        //*currMin = static_cast<float>(1e30); // really big number
-        //*currMax = static_cast<float>(-1e30); // really negative number
         currMin = 1e30;
         currMax = -1e30;
         for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
@@ -205,7 +203,7 @@ namespace sparse_nn {
           }
         }
         // convert max to range of data
-        currMax = currMax - currMin < 1e-7 ? 1e-7 : currMax - currMin;
+        currMax = currMax - currMin < 1e-16 ? 1e-16 : currMax - currMin;
     
       } else {
         //std::cout << "batch / matrix mismatch: " << currBatchSize << " vs " << nTimestepsPerBatch_ << std::endl; 

@@ -14,6 +14,10 @@ namespace sparse_nn {
     virtual void copyMatrixToVector(const Eigen::MatrixXf& mat, std::vector<Timestep>& dataBuffer) = 0;
     virtual void copyVectorToMatrix(Eigen::MatrixXf& mat, const double *dataBuffer, int nLocalElements) = 0;
     virtual void copyMatrixToVector(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements) = 0;
+    virtual void copyVectorToMatrixWithNormalization(Eigen::MatrixXf& mat, const double *dataBuffer, int nLocalElements, 
+                                                     Eigen::VectorXf& mins, Eigen::VectorXf& ranges, int currBatchSize) = 0;
+    virtual void copyMatrixToVectorWithUnnormalization(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements, 
+                                                       const Eigen::VectorXf& mins, const Eigen::VectorXf& ranges) = 0;
   };
 
   class SpaceBatchPreparer : public BatchPreparer {
@@ -23,6 +27,10 @@ namespace sparse_nn {
     virtual void copyMatrixToVector(const Eigen::MatrixXf& mat, std::vector<Timestep>& dataBuffer) override;    
     virtual void copyVectorToMatrix(Eigen::MatrixXf& mat, const double *dataBuffer, int nLocalElements) override {};
     virtual void copyMatrixToVector(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements) override {};
+    virtual void copyVectorToMatrixWithNormalization(Eigen::MatrixXf& mat, const double *dataBuffer, int nLocalElements, 
+                                                     Eigen::VectorXf& mins, Eigen::VectorXf& ranges, int currBatchSize) override {};
+    virtual void copyMatrixToVectorWithUnnormalization(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements, 
+                                                       const Eigen::VectorXf& mins, const Eigen::VectorXf& ranges) override {};
   };
 
   class TimeBatchPreparer : public BatchPreparer {
@@ -32,6 +40,10 @@ namespace sparse_nn {
     virtual void copyMatrixToVector(const Eigen::MatrixXf& mat, std::vector<Timestep>& dataBuffer) override;
     virtual void copyVectorToMatrix(Eigen::MatrixXf& mat, const double *dataBuffer, int nLocalElements) override;
     virtual void copyMatrixToVector(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements) override;
+    virtual void copyVectorToMatrixWithNormalization(Eigen::MatrixXf& mat, const double *dataBuffer, int nLocalElements, 
+                                                     Eigen::VectorXf& mins, Eigen::VectorXf& ranges, int currBatchSize) override;
+    virtual void copyMatrixToVectorWithUnnormalization(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements, 
+                                                       const Eigen::VectorXf& mins, const Eigen::VectorXf& ranges) override;
 
   private:
     int nDofsPerElement_;

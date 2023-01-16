@@ -1,8 +1,10 @@
 #include "batch_preparation/batch_preparer.h"
 
-#include <vector>
-#include <Eigen/Core>
 #include <iostream>
+#include <math.h>
+#include <vector>
+
+#include <Eigen/Core>
 
 namespace sparse_nn {
   SpaceBatchPreparer::SpaceBatchPreparer() {} 
@@ -155,13 +157,88 @@ namespace sparse_nn {
 
 	}
 	
-	void TimeBatchPreparer::copyMatrixToVector(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements) {
+  void TimeBatchPreparer::copyMatrixToVector(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements) {
     for (int row = 0; row < mat.rows(); ++row) {
       for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
         int storageOffset = mapCompressionToPde_[row * nTimestepsPerBatch_ * nRkStages_ + i];
         int colOffset = nDofsPerElement_ * i;
         for (int j = 0; j < nDofsPerElement_; ++j) {
           dataBuffer[storageOffset + j] = static_cast<double>(mat(row, colOffset + j));
+        }
+      }
+    }
+  }
+
+
+  // combined copy / min / max computation
+  void TimeBatchPreparer::copyVectorToMatrixWithNormalization(Eigen::MatrixXf& mat, const double *dataBuffer, int nLocalElements, 
+                                                              Eigen::VectorXf& mins, Eigen::VectorXf& ranges, int currBatchSize) {
+    if (mapCompressionToPde_ == nullptr) {
+      createMapping(nLocalElements);
+    }
+
+    // make sure eigen data structures are the correct size
+    mat.resize(nStates_ * nLocalElements, nTimestepsPerBatch_ * nRkStages_ * nDofsPerElement_);
+    mins.resize(mat.rows());
+    ranges.resize(mat.rows());
+
+    // loop through each batch element
+    for (int row = 0; row < mat.rows(); ++row) {
+      // compute min and range
+      //float *currMin = mins.data() + row;
+      //float *currMax = ranges.data() + row;
+      float currMin; 
+      float currMax;
+
+      if (currBatchSize == nTimestepsPerBatch_) {
+        //*currMin = static_cast<float>(1e30); // really big number
+        //*currMax = static_cast<float>(-1e30); // really negative number
+        currMin = 1e30;
+        currMax = -1e30;
+        for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
+          int storageOffset = mapCompressionToPde_[row * nTimestepsPerBatch_ * nRkStages_ + i];
+          int colOffset = nDofsPerElement_ * i;
+          for (int j = 0; j < nDofsPerElement_; ++j) {
+            float currVal = static_cast<float>(dataBuffer[storageOffset + j]);
+            currMin = (currVal < currMin) ? currVal : currMin;
+            currMax = (currVal > currMax) ? currVal : currMax;
+          }
+        }
+        // convert max to range of data
+        currMax = currMax - currMin < 1e-7 ? 1e-7 : currMax - currMin;
+    
+      } else {
+        //std::cout << "batch / matrix mismatch: " << currBatchSize << " vs " << nTimestepsPerBatch_ << std::endl; 
+        // direct storage with no normalization
+        currMin = 0;
+        currMax = 1;
+      }
+      mins(row) = currMin;
+      ranges(row) = currMax;
+      
+      // do copy with normalization
+      for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
+        int storageOffset = mapCompressionToPde_[row * nTimestepsPerBatch_ * nRkStages_ + i];
+        int colOffset = nDofsPerElement_ * i;
+        for (int j = 0; j < nDofsPerElement_; ++j) {
+          float currVal = static_cast<float>(dataBuffer[storageOffset + j]);
+          mat(row, colOffset + j) = (currVal - currMin) / currMax; 
+        }
+      }
+    }
+	}
+	
+  void TimeBatchPreparer::copyMatrixToVectorWithUnnormalization(const Eigen::MatrixXf& mat, double *dataBuffer, int nLocalElements, 
+                                                                const Eigen::VectorXf& mins, const Eigen::VectorXf& ranges) {
+    for (int row = 0; row < mat.rows(); ++row) {
+      // lets cast these to double to keep more digits of multiplication
+      double currMin = static_cast<double>(mins(row));
+      double currRange = static_cast<double>(ranges(row));
+      for (int i = 0; i < nTimestepsPerBatch_ * nRkStages_; ++i) {
+        int storageOffset = mapCompressionToPde_[row * nTimestepsPerBatch_ * nRkStages_ + i];
+        int colOffset = nDofsPerElement_ * i;
+        for (int j = 0; j < nDofsPerElement_; ++j) {
+          dataBuffer[storageOffset + j] = static_cast<double>(mat(row, colOffset + j)) * currRange + currMin ;
         }
       }
     }

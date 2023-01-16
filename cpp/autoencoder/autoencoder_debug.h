@@ -30,8 +30,8 @@ namespace sparse_nn {
     double writeProbability_;
     int fullDimension_; // input dimension to autoencoder
 
-		std::vector<CompressedBatch<Eigen::MatrixXd>> compressedStates_;
-		CompressedBatch<Eigen::MatrixXd>& getBatchStorage(const int startingTimestep, const int endingTimestep);
+		std::vector<CompressedBatch<Eigen::MatrixXf>> compressedStates_;
+		CompressedBatch<Eigen::MatrixXf>& getBatchStorage(const int startingTimestep, const int endingTimestep);
 	};
 
 

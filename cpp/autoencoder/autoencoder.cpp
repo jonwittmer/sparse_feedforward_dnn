@@ -43,33 +43,33 @@ namespace sparse_nn {
       batchSize_ = currBatchSize;
     }
 
-		TIME_CODE(batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer, nLocalElements);, "[COMPRESS] copy to matrix");
+		//TIME_CODE(batchPreparer_->copyVectorToMatrix(batchDataMatrix_, dataBuffer, nLocalElements);, "[COMPRESS] copy to matrix");
     
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(startingTimestep, startingTimestep + currBatchSize - 1);
 		
+    TIME_CODE(
+      batchPreparer_->copyVectorToMatrixWithNormalization(batchDataMatrix_, dataBuffer, nLocalElements, 
+                                                          batchStorage.mins, batchStorage.ranges, currBatchSize);, 
+      "[COMPRESS] copy to matrix with computing mins"
+    );
+    
     // directly store last batch if it is not the correct size since
     // compressing in time requires fixed batch size
     if (currBatchSize != batchSize_) {
-      batchStorage.data = batchDataMatrix_.cast<float>();
+      batchStorage.data = batchDataMatrix_;
       return;
     }
 
 		// normalize
-		TIME_CODE(
-      batchStorage.mins = subtractAndReturnMins(batchDataMatrix_);		
-      batchStorage.ranges = divideAndReturnRanges(batchDataMatrix_);,
-             "[COMPRESS] normalization"
-    );
-    if (mpirank_ == 0) {
-      std::cout << "[DEBUG] " << batchDataMatrix_.rows() << std::endl;
-    }
-    // Eigen::MatrixXf temp;
-    // TIME_CODE(
-    //   temp = batchDataMatrix_.cast<float>();, "[COMPRESS] cast to float"
+		// TIME_CODE(
+    //   batchStorage.mins = subtractAndReturnMins(batchDataMatrix_);		
+    //   batchStorage.ranges = divideAndReturnRanges(batchDataMatrix_);,
+    //          "[COMPRESS] normalization"
     // );
+
 		// do compression
 		TIME_CODE(
-      batchStorage.data = encoder_.run(batchDataMatrix_.cast<float>());, "[COMPRESS] compression");
+      batchStorage.data = encoder_.run(batchDataMatrix_);, "[COMPRESS] compression");
     //verbosePrinting(batchStorage);
 	}
 	
@@ -80,15 +80,14 @@ namespace sparse_nn {
 		CompressedBatch<Eigen::MatrixXf>& batchStorage = getBatchStorage(latestTimestep, latestTimestep);
     //std::cout << "requested timestep " << latestTimestep << std::endl;
     if (batchStorage.getEndingTimestep() - batchStorage.getStartingTimestep() + 1 < batchSize_) {
-      batchDataMatrix_ = batchStorage.data.cast<double>();
+      batchDataMatrix_ = batchStorage.data;
     } else {
-      Eigen::MatrixXf decompressedBatch;
-      TIME_CODE(decompressedBatch = decoder_.run(batchStorage.data);, "[DECOMPRESS] decompression");
+      TIME_CODE(batchDataMatrix_ = decoder_.run(batchStorage.data);, "[DECOMPRESS] decompression");
 		
-      TIME_CODE(
-        batchDataMatrix_ = unnormalize(decompressedBatch, batchStorage.mins, batchStorage.ranges);, 
-        "[DECOMPRESS] unnormalize"
-      );
+      // TIME_CODE(
+      //   batchDataMatrix_ = unnormalize(batchDataMatrix_, batchStorage.mins, batchStorage.ranges);, 
+      //   "[DECOMPRESS] unnormalize"
+      // );
     }
     
     if (batchDataMatrix_.rows() == 0 || batchDataMatrix_.cols() == 0) {
@@ -105,7 +104,7 @@ namespace sparse_nn {
     if (debugMode_ && mpirank_ == 0) {
       Eigen::MatrixXf decodedMat = decoder_.run(batchStorage.data);
       //Eigen::MatrixXd unnormalizedMat = unnormalize(decodedMat, batchStorage.mins, batchStorage.ranges);
-      double errorNorm = (decodedMat - batchDataMatrix_.cast<float>()).norm();
+      double errorNorm = (decodedMat - batchDataMatrix_).norm();
       double batchNorm = batchDataMatrix_.norm();
       if (batchNorm > 1e-13){
         double relError = errorNorm / batchNorm;

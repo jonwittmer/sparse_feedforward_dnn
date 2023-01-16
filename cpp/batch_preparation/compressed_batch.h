@@ -13,8 +13,8 @@ namespace sparse_nn {
 		int getStartingTimestep() const;
 		int getEndingTimestep() const;
 		
-		Eigen::VectorXd mins;
-		Eigen::VectorXd ranges;
+		Eigen::VectorXf mins;
+		Eigen::VectorXf ranges;
 		T data;
 		
 	private:

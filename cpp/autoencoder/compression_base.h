@@ -28,7 +28,7 @@ namespace sparse_nn {
 	protected:
     std::string encoderPath_;
     std::string decoderPath_;
-    Eigen::MatrixXd batchDataMatrix_;
+    Eigen::MatrixXf batchDataMatrix_;
 		
 		bool debugMode_ = false;
 		bool shouldWrite_ = false;
